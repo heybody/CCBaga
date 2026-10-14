@@ -29,3 +29,5 @@ regions.rs: 地区编号到语言、区域格式和代表时区的唯一白名�
 linux.rs: 浏览器独立扫描与目录 inode/启动时间复核，候选读取失败阻断，Claude 枚举保持原规则；浏览器快照保留原始 LC_TIME（含代码集后 @rg），系统预检仅去代码集并保留 modifier，防有效地区误报，无效覆盖不回退基础国家；Linux procfs 当前用户进程、zoneinfo/timedatectl、GNOME 定位偏好、GNOME/KDE 设置入口与 Wayland/X11 剪贴板；LC_MESSAGES/LC_TIME 分别读取会话语言/区域格式，不匹配时先报手动操作再改时区；未知定位为 null，Linux 钥匙串明确不可用；不将系统代理凭据序列化给 WebView。
 network_links.rs: 固定四域名并发只读 HTTP 探针；下载元数据仅接受 HTTP200、流式最多64字节的三段数字版本，空/畸形/超限/截断均失败且正文不进UI；其他域名维持连通性/浏览器质询语义；重定向只认可无认证的官方HTTPS:443目标，始终不跟随。默认不继承代理认证、不跟随重定向、八秒超时；固定供应商与 Skill 导航白名单，编译消费 providers.json 组装原始 URL，WebView 不能指定 URL；无密钥访问或 SSH 执行。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+本地维护：v0.2.48基线保留动态备份路径校验与Desktop未知邮箱提示；详情见本地维护文档。

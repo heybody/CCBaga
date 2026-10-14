@@ -211,14 +211,16 @@ pub(crate) fn allowed(root: &Path, source: &Source) -> bool {
             (
                 "Library/Preferences/ByHost",
                 "com.anthropic.claudefordesktop",
+                "desktop",
             ),
-            ("Library/Caches", "com.anthropic.claudefordesktop"),
-            ("Library/Logs/DiagnosticReports", "Claude"),
-            ("Library/Application Support/CrashReporter", "Claude"),
+            ("Library/Caches", "com.anthropic.claudefordesktop", "cache"),
+            ("Library/Logs/DiagnosticReports", "Claude", "cache"),
+            ("Library/Application Support/CrashReporter", "Claude", "cache"),
         ]
         .iter()
-        .any(|(parent, prefix)| {
-            source.path.parent() == Some(root.join(parent).as_path())
+        .any(|(parent, prefix, category)| {
+            source.category == *category
+                && source.path.parent() == Some(root.join(parent).as_path())
                 && source
                     .path
                     .file_name()

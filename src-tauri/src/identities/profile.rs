@@ -1,5 +1,5 @@
 // [INPUT]: 默认 .claude.json 的 oauthAccount 显示字段、本地凭据的订阅/过期元数据、已认证暂存归档和精确进程查询结果。
-// [OUTPUT]: 当前身份与已保存摘要的显示白名单、按读取时间计算的本地凭据状态，以及至多 32 个进程预览；查询失败明确未知。
+// [OUTPUT]: 当前身份与已保存摘要的显示白名单、按读取时间计算的本地凭据状态，以及至多 32 个进程预览；查询失败明确未知；明确区分桌面资料存在与账号邮箱已识别。
 // [POS]: 身份卡片的只读展示边界；不读取钥匙串、Cookie 正文或任意项目文件。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,7 @@ struct Config {
 #[derive(Clone, Default, Serialize)]
 pub struct Current {
     pub present: bool,
+    pub desktop_present: bool,
     pub display_name: Option<String>,
     pub email: Option<String>,
     pub organization: Option<String>,
@@ -202,6 +203,7 @@ fn parse(bytes: &[u8]) -> Result<Current, serde_json::Error> {
     Ok(match config.account {
         Some(account) => Current {
             present: true,
+            desktop_present: false,
             display_name: display(account.display_name, 80),
             email: display(account.email_address, 254),
             organization: display(account.organization_name, 120),
@@ -279,7 +281,8 @@ pub fn read(home: &Path) -> Current {
         current.auth_status = Some(auth.status_at(now_ms()).into());
         current.expires_at = auth.expiry();
     }
-    current.present |= crate::cleaner::identity::desktop_present(home);
+    current.desktop_present = crate::cleaner::identity::desktop_present(home);
+    current.present |= current.desktop_present;
     current
 }
 pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
@@ -471,5 +474,27 @@ mod tests {
             .contains("private-command-token"));
         assert_eq!(process_previews(Ok(Vec::new())), (Some(Vec::new()), false));
         assert_eq!(process_previews(Err("query failed".into())), (None, false));
+    }
+    #[test]
+    fn free_account_display_does_not_depend_on_subscription() {
+        let current = parse(br#"{"oauthAccount":{"emailAddress":"free@example.invalid","subscriptionType":"free"}}"#).unwrap();
+        assert_eq!(current.email.as_deref(), Some("free@example.invalid"));
+        assert!(current.present);
+    }
+    #[test]
+    fn desktop_data_without_code_account_is_explicit_and_unverified() {
+        let folder = std::fs::canonicalize(std::env::temp_dir()).unwrap()
+            .join(format!("baga-profile-test-{}", super::super::new_id().unwrap()));
+        super::super::private::directory(&folder).unwrap();
+        super::super::private::write(&folder.join(".claude.json"), b"{}").unwrap();
+        assert!(!read(&folder).present);
+        let desktop = folder.join("Library/Application Support/Claude");
+        super::super::private::directory(&desktop).unwrap();
+        super::super::private::write(&desktop.join("Cookies"), b"opaque fixture").unwrap();
+        let current = read(&folder);
+        assert!(current.present && current.desktop_present);
+        assert!(current.email.is_none());
+        assert!(!current.unavailable);
+        std::fs::remove_dir_all(folder).unwrap();
     }
 }

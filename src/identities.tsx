@@ -16,7 +16,7 @@ import {formatBytes} from './cleaner-model';
 import {IdentityTransfer} from './identity-transfer';
 import {ClaudeCliPanel} from './claude-cli-panel';
 import {ClaudeResiduePanel} from './claude-residue-panel';
-import {credentialStatus, defaultPolicy, policyRows, type Identity, type IdentityState} from './identity-model';
+import {credentialStatus, currentAccountMessage, defaultPolicy, policyRows, type Identity, type IdentityState} from './identity-model';
 type Target = Identity | 'empty' | 'recovery' | 'save';
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
@@ -170,7 +170,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
     {(loading||current?.present)&&<IdentityCard className="identity-card current" label={t('当前身份')}>
      <div className="identity-card-head"><div className="identity-avatar" aria-hidden="true">{current?.display_name||current?.email?Array.from(currentName)[0]?.toUpperCase():<ShieldCheck size={20}/>}</div><span className="identity-live-badge">{loading?t('检查中'):state?.processes==null?t('状态未知'):state.running?t('运行中'):t('进程已停止')}</span>{active&&<Button className="identity-export" variant="ghost" size="small" disabled={blocked} aria-label={t('导出保存备份')} onClick={()=>setTransfer(active)}>{t('导出')}</Button>}</div>
      <h3>{currentName}</h3>
-     <div className="identity-account">{current?.email?<span className="identity-email">{current.email}</span>:<span className="identity-account-unknown">{t(current?.unavailable?'账号信息暂不可读':'账号信息未识别')}</span>}{current?.organization&&<span className="identity-organization">{current.organization}</span>}</div>
+     <div className="identity-account">{current?.email?<span className="identity-email">{current.email}</span>:<span className="identity-account-unknown">{t(currentAccountMessage(current))}</span>}{current?.organization&&<span className="identity-organization">{current.organization}</span>}</div>
+     {(current?.email||current?.display_name)&&<span className="identity-account-source">Claude Code</span>}
      <div className="identity-badges">
       <span className={`identity-status-badge ${active?'backed-up':'unbacked'}`}>{t(active?'已备份':'未备份')}</span>
       {current?.plan&&<span className="identity-status-badge plan">{current.plan}</span>}
