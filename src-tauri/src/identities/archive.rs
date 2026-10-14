@@ -255,11 +255,15 @@ impl Store {
         } else {
             None
         };
-        let previous = account_key
+        let mut previous = account_key
             .as_deref()
             .map(|key| self.db.by_account(key))
             .transpose()?
             .flatten();
+        // 未识别邮箱的当前槽位保存更新自身，空数据和恢复检查点不采用此回退。
+        if reuse && account_key.is_none() && !(sources.is_empty() && credentials.is_empty()) {
+            previous = self.db.active_unknown()?;
+        }
         // 空资料的随机编号预留给首次保存的身份，避免登录后第一次暂存又改变种子。
         let draft = if reuse {
             self.db.browser_draft()?

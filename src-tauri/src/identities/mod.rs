@@ -120,7 +120,7 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
             .unwrap()
             .clone(),
         records: db.records()?.into_iter().filter(|r| !r.empty).collect(),
-        active: catalog::current_id(&vault_path, &root_path, &db)?
+        active: catalog::workspace_id(&vault_path, &root_path, &db)?
             .unwrap_or_else(|| "current".into()),
         recovery: db.get("recovery")?,
         running: crate::cleaner::identity::processes_running()?,

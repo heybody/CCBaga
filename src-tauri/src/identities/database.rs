@@ -110,6 +110,17 @@ impl Database {
             .into_iter()
             .find(|r| r.account_key.as_deref() == Some(key)))
     }
+    pub(super) fn active_unknown(&self) -> Result<Option<Record>, String> {
+        if self.get("recovery")?.is_some() {
+            return Ok(None);
+        }
+        let active = self.get("active")?;
+        Ok(self.records()?.into_iter().find(|r| {
+            Some(&r.id) == active.as_ref()
+                && !r.empty
+                && r.account_key.as_deref().unwrap_or("").is_empty()
+        }))
+    }
     pub fn index(&self, id: &str, key: &str) -> Result<(), String> {
         self.connection
             .execute(
