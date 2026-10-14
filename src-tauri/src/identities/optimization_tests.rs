@@ -658,3 +658,66 @@ fn in_place_backup_preserves_workspace_and_missing_summaries_stay_lazy() {
     assert!(s.db.summaries().unwrap().is_empty());
     assert_eq!(s.records()[0].id, rec_id);
 }
+
+#[test]
+fn desktop_only_accounts_update_selected_slots_without_extra_cards() {
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let cookie = "Library/Application Support/Claude/Cookies";
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    s.db.configure_browser(false, false, None).unwrap();
+    f.write(cookie, b"desktop-A");
+    s.switch("empty", "Desktop A", &p, &r).unwrap();
+    let a = s.records().into_iter().find(|r| !r.empty).unwrap().id;
+    f.write(cookie, b"desktop-B");
+    s.switch(&a, "Desktop B", &p, &r).unwrap();
+    let b = s.records().into_iter().find(|r| r.id != a && !r.empty).unwrap().id;
+    for n in 0..3 {
+        assert_eq!(catalog::workspace_id(&f.vault, &f.home, &s.db).unwrap().as_deref(), Some(a.as_str()));
+        assert!(catalog::current_id(&f.vault, &f.home, &s.db).unwrap().is_none());
+        f.write(cookie, format!("desktop-A-{n}").as_bytes());
+        s.switch(&b, "不应生成新A卡片", &p, &r).unwrap();
+        f.write(cookie, format!("desktop-B-{n}").as_bytes());
+        s.switch(&a, "不应生成新B卡片", &p, &r).unwrap();
+        assert_eq!(fs::read(f.home.join(cookie)).unwrap(), format!("desktop-A-{n}").as_bytes());
+        let records = s.records();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records.iter().find(|r| r.id == a).unwrap().name, "Desktop A");
+        assert_eq!(records.iter().find(|r| r.id == b).unwrap().name, "Desktop B");
+        assert_eq!(fs::read_dir(&f.vault).unwrap().flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "baga")).count(), 2);
+    }
+    f.write(cookie, b"desktop-A-latest");
+    s.switch(&a, "再次选中自身", &p, &r).unwrap();
+    assert_eq!(fs::read(f.home.join(cookie)).unwrap(), b"desktop-A-latest");
+    assert_eq!(s.records().len(), 2);
+    let (checkpoint, _stage) = s.save_checkpoint("恢复前检查点", &p, &r).unwrap();
+    assert_ne!(checkpoint.id, a);
+    s.db.remember(&checkpoint).unwrap();
+    assert_eq!(s.records().len(), 3);
+}
+
+#[test]
+fn unknown_slot_does_not_absorb_new_code_account_or_overwrite_empty_workspace() {
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let cookie = "Library/Application Support/Claude/Cookies";
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    f.write(cookie, b"desktop-A");
+    s.switch("empty", "Desktop A", &p, &r).unwrap();
+    let a = s.records().into_iter().find(|r| !r.empty).unwrap();
+    s.switch(&a.id, "空工作区", &p, &r).unwrap();
+    f.login("new-code", "one", "fixture");
+    assert!(catalog::workspace_id(&f.vault, &f.home, &s.db).unwrap().is_none());
+    let (new_account, _stage) = s.save("新的Code账号", &p, &r).unwrap();
+    assert_ne!(new_account.id, a.id);
+    fs::remove_file(f.home.join(cookie)).unwrap();
+    fs::remove_file(f.home.join(".claude.json")).unwrap();
+    fs::remove_file(f.home.join(".claude/.credentials.json")).unwrap();
+    let (empty, _stage) = s.save("原位数据已不存在", &p, &r).unwrap();
+    assert!(empty.empty);
+    assert_ne!(empty.id, a.id);
+    assert!(f.vault.join(&a.archive).exists());
+}

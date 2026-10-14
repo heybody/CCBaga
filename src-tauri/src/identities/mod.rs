@@ -135,7 +135,7 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
         summaries,
         processes,
         processes_truncated,
-        active: catalog::current_id(&vault_path, &root_path, &db)?
+        active: catalog::workspace_id(&vault_path, &root_path, &db)?
             .unwrap_or_else(|| "current".into()),
         recovery: db.get("recovery")?,
         running,

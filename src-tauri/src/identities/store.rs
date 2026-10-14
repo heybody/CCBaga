@@ -493,6 +493,17 @@ impl Store {
             Some(stage)
         };
         let (record, outgoing) = self.save(name, policy, reporter)?;
+        if target == record.id {
+            // 选中当前未知身份自身时保存最新归档，不回灌加载的旧快照。
+            reporter.log("commit", "running", "正在保存当前身份选择。", 0, Some(1));
+            self.db.remember(&record)?;
+            self.db.complete(target)?;
+            self.db.compact()?;
+            let _ = self.collect_generations();
+            reporter.log("commit", "ok", "当前身份选择已保存。", 1, Some(1));
+            reporter.log("verify", "ok", "当前身份已经是所选身份。", 1, Some(1));
+            return Ok(());
+        }
         let previous = self.db.get("active")?.unwrap_or_else(|| "current".into());
         self.db.pending(&record, target)?;
         let current = Self::selected(&outgoing, policy);

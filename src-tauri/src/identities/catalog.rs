@@ -1,5 +1,5 @@
 // [INPUT]: 有界 OAuth 账号元数据、本机密钥、已认证旧归档与 SQLite 目录。
-// [OUTPUT]: 稳定的本机 HMAC 账号索引、显式事务内旧账号索引迁移与已提交归档代次回收；缺摘要不主动解包。
+// [OUTPUT]: 稳定的本机 HMAC 账号索引与工作区槽位（未知账号沿用已选择槽位，但不冒充账号验证）、显式事务内旧账号索引迁移与已提交归档代次回收；缺摘要不主动解包。
 // [POS]: 只按账号 UUID/组织（缺失时邮箱/组织）匹配；令牌刷新、名称变更不产生新身份。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{database::Database, private, store::Store};
@@ -59,10 +59,9 @@ fn file_key(path: &Path, key: &[u8]) -> Result<Option<String>, String> {
 pub(super) fn live_key(home: &Path, key: &[u8]) -> Result<Option<String>, String> {
     file_key(&home.join(".claude.json"), key)
 }
-pub(super) fn current_id(
+fn local_key(
     vault: &Path,
     home: &Path,
-    db: &Database,
 ) -> Result<Option<String>, String> {
     let key_path = vault.join("key.bin");
     if !key_path.exists() {
@@ -78,9 +77,26 @@ pub(super) fn current_id(
         return Err("身份密钥无效。".into());
     }
     let key = zeroize::Zeroizing::new(fs::read(key_path).map_err(|_| "身份密钥无法读取。")?);
-    Ok(match live_key(home, &key)? {
+    live_key(home, &key)
+}
+pub(super) fn current_id(
+    vault: &Path,
+    home: &Path,
+    db: &Database,
+) -> Result<Option<String>, String> {
+    Ok(match local_key(vault, home)? {
         Some(key) => db.by_account(&key)?.map(|r| r.id),
         None => None,
+    })
+}
+pub(super) fn workspace_id(
+    vault: &Path,
+    home: &Path,
+    db: &Database,
+) -> Result<Option<String>, String> {
+    Ok(match local_key(vault, home)? {
+        Some(key) => db.by_account(&key)?.map(|r| r.id),
+        None => db.active_unknown()?.map(|r| r.id),
     })
 }
 impl Store {
