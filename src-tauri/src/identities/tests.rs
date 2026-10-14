@@ -632,3 +632,51 @@ fn existing_directories_keep_their_permissions() {
     assert_eq!(permissions(&folder), before);
     std::fs::remove_dir_all(folder).unwrap();
 }
+
+#[test]
+fn moved_backups_can_be_restored_across_repeated_identity_switches() {
+    let folder = canonicalize(std::env::temp_dir()).unwrap()
+        .join(format!("baga-backup-test-{}", new_id().unwrap()));
+    let home = folder.join("home");
+    private::directory(&home).unwrap();
+    let names = [".claude.json.backup", ".claude.json.backup.1728880000000"];
+    for name in names {
+        fixture_write(home.join(name), br#"{"fixture":"original"}"#).unwrap();
+    }
+    let mut store = store::Store::open(&folder.join("vault"), &home).unwrap();
+    let reporter = Reporter::channel(None);
+    store.switch("empty", "原身份", &Policy::default(), &reporter).unwrap();
+    let id = store.records().into_iter().find(|r| !r.empty).unwrap().id;
+    for _ in 0..3 {
+        for name in names { assert!(!home.join(name).exists()); }
+        store.switch(&id, "空身份", &Policy::default(), &reporter).unwrap();
+        for name in names {
+            assert_eq!(std::fs::read(home.join(name)).unwrap(), br#"{"fixture":"original"}"#);
+        }
+        store.switch("empty", "原身份", &Policy::default(), &reporter).unwrap();
+    }
+    drop(store);
+    std::fs::remove_dir_all(folder).unwrap();
+}
+
+#[test]
+fn absent_backup_allowlist_rejects_other_paths_categories_and_keys() {
+    use crate::cleaner::identity::{allowed, Source};
+    let root = std::path::Path::new("/fixture/home");
+    let mut source = Source {
+        path: root.join(".claude.json.backup"), category: "backups".into(), keys: vec![],
+    };
+    assert!(allowed(root, &source));
+    source.path = root.join(".claude.json.backup.123");
+    assert!(allowed(root, &source));
+    for path in [".claude.json", "unrelated.backup", "nested/.claude.json.backup", "../.claude.json.backup"] {
+        source.path = root.join(path);
+        assert!(!allowed(root, &source), "unexpected allowed path: {path}");
+    }
+    source.path = root.join(".claude.json.backup");
+    source.category = "account".into();
+    assert!(!allowed(root, &source));
+    source.category = "backups".into();
+    source.keys.push("oauthAccount".into());
+    assert!(!allowed(root, &source));
+}

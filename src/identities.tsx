@@ -15,7 +15,7 @@ import {IdentityOperationProgress, useCleanupActivity} from './cleaner-activity'
 import {formatBytes} from './cleaner-model';
 import {ClaudeCliPanel} from './claude-cli-panel';
 import {ClaudeResiduePanel} from './claude-residue-panel';
-import {defaultPolicy, policyRows, type Identity, type IdentityState} from './identity-model';
+import {currentAccountMessage, defaultPolicy, policyRows, type Identity, type IdentityState} from './identity-model';
 type Target = Identity | 'empty' | 'recovery';
 export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:boolean)=>void; initialEmpty?:boolean}) {
  const {t, locale}=useI18n();
@@ -151,7 +151,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
     {(loading||current?.present)&&<IdentityCard className="identity-card current" label={t('当前身份')}>
      <div className="identity-card-head"><div className="identity-avatar" aria-hidden="true">{current?.display_name||current?.email?Array.from(currentName)[0]?.toUpperCase():<ShieldCheck size={20}/>}</div><span className="identity-live-badge">{loading?t('检查中'):state?.running?t('运行中'):t('进程已停止')}</span></div>
      <h3>{currentName}</h3>
-     <div className="identity-account">{current?.email?<span className="identity-email">{current.email}</span>:<span className="identity-account-unknown">{t(current?.unavailable?'账号信息暂不可读':'账号信息未识别')}</span>}{current?.organization&&<span className="identity-organization">{current.organization}</span>}</div>
+     <div className="identity-account">{current?.email?<span className="identity-email">{current.email}</span>:<span className="identity-account-unknown">{t(currentAccountMessage(current))}</span>}{current?.organization&&<span className="identity-organization">{current.organization}</span>}</div>
      {(current?.email||current?.display_name)&&<span className="identity-account-source">Claude Code</span>}{state?.browser.enabled&&<span className="identity-browser-badge">{t('独立浏览器')}</span>}
      <div className="identity-card-footer"><Button variant="secondary" size="small" disabled={blocked} onClick={()=>choose('empty')}>{t('暂存')}</Button><Button variant="ghost" size="small" disabled={blocked} onClick={()=>confirmDelete('current')}>{t('直接删除')}</Button></div>
     </IdentityCard>}

@@ -1,6 +1,6 @@
 // [INPUT]: Cleaner 白名单、共享 Code 登录键常量、完整目录快照、用户保留策略与 JSON 配置。
 // [OUTPUT]: 受限身份目标、配置身份键与 githubRepoPaths 的提取/清空/恢复，保留工作区未选择的个人资产及桌面身份路径元数据检测。
-// [POS]: 身份保险库复用原有路径边界；不扫描项目源码、Shell 或系统代理配置。
+// [POS]: 动态备份恢复按名称/类别验证，不依赖原位存在； 身份保险库复用原有路径边界；不扫描项目源码、Shell 或系统代理配置。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
 use crate::identities::Policy;
@@ -211,21 +211,30 @@ pub(crate) fn allowed(root: &Path, source: &Source) -> bool {
             (
                 "Library/Preferences/ByHost",
                 "com.anthropic.claudefordesktop",
+                "desktop",
             ),
-            ("Library/Caches", "com.anthropic.claudefordesktop"),
-            ("Library/Logs/DiagnosticReports", "Claude"),
-            ("Library/Application Support/CrashReporter", "Claude"),
+            ("Library/Caches", "com.anthropic.claudefordesktop", "cache"),
+            ("Library/Logs/DiagnosticReports", "Claude", "cache"),
+            ("Library/Application Support/CrashReporter", "Claude", "cache"),
         ]
         .iter()
-        .any(|(parent, prefix)| {
-            source.path.parent() == Some(root.join(parent).as_path())
+        .any(|(parent, prefix, category)| {
+            source.category == *category
+                && source.path.parent() == Some(root.join(parent).as_path())
                 && source
                     .path
                     .file_name()
                     .and_then(|s| s.to_str())
                     .is_some_and(|s| s.starts_with(prefix))
         });
-    known || special
+    // 归档后的备份已从工作区移走，不能用当前目录扫描决定能否恢复。
+    let backup = source.category == "backups"
+        && source.keys.is_empty()
+        && source.path.parent() == Some(root)
+        && source.path.file_name().and_then(|s| s.to_str()).is_some_and(|name| {
+            name == ".claude.json.backup" || name.starts_with(".claude.json.backup.")
+        });
+    known || special || backup
 }
 pub(crate) fn fingerprint(path: &Path) -> Result<Vec<u8>, String> {
     Ok(targets::measure(path)?.2)
