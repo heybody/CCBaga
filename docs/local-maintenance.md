@@ -1,13 +1,14 @@
 # v0.2.48 本地维护与接手说明
 
-更新至：2026-10-17 23:00（Asia/Taipei）
+更新至：2026-10-17 23:05（Asia/Taipei）
 
 ## 当前状态
 
 - 分支：`codex/identity-switch-fix-0.2.48`；基线 `v0.2.48` / `30a171f`。
 - 旧修复分支 `codex/identity-switch-fix` / `a9d0ca8` 保留，不重写历史。
 - 已编译候选宿主A：`0.2.48+local.1`，debug/custom-protocol、UI内嵌、本地ad-hoc签名。
-- **尚未安装候选包**；本机仍为 `0.2.43+local.3`。未切换真实账号，未修改保险库或钥匙串。
+- 已于2026-10-17 23:05安装并启动 `0.2.48+local.1`；替换前再次通过38项身份与23项前端测试，数据库quick_check正常、无恢复事务。安装前后保险库逐文件内容一致。未执行真实账号切换。
+- 本次回退副本：`builds/ccbaga-maintenance/rollback/20261017-230457/`，包含旧A `0.2.43+local.3`与完整保险库（Git忽略）。
 - 用户只使用Claude Code/Desktop，不需要独立浏览器B。用户最新要求：后续清理干净B。不要安装B、开启联动或使用真实浏览资料做测试。
 
 ## 移植内容
@@ -35,7 +36,7 @@
 ```sh
 # 在主工作区根执行：
 sh builds/ccbaga-maintenance/build-local.sh
-# 下条命令会替换A；本轮未执行：
+# 下条命令会备份并替换A：
 python3 builds/ccbaga-maintenance/install-host.py
 ```
 
