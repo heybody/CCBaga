@@ -680,3 +680,91 @@ fn absent_backup_allowlist_rejects_other_paths_categories_and_keys() {
     source.keys.push("oauthAccount".into());
     assert!(!allowed(root, &source));
 }
+
+#[test]
+fn repeatedly_selecting_empty_leaves_no_identity_records_or_archives() {
+    let folder = canonicalize(std::env::temp_dir()).unwrap()
+        .join(format!("baga-empty-test-{}", new_id().unwrap()));
+    let home = folder.join("home");
+    let vault = folder.join("vault");
+    private::directory(&home).unwrap();
+    let mut store = store::Store::open(&vault, &home).unwrap();
+    let reporter = Reporter::channel(None);
+    for _ in 0..4 {
+        store.switch("empty", "无需保存的空身份", &Policy::default(), &reporter).unwrap();
+        assert!(store.records().is_empty());
+        assert_eq!(store.db.get("active").unwrap().as_deref(), Some("empty"));
+        assert!(store.db.get("recovery").unwrap().is_none());
+        assert!(!std::fs::read_dir(&vault).unwrap().flatten().any(|e| {
+            e.path().extension().is_some_and(|s| s == "baga")
+                || e.file_name().to_string_lossy().starts_with(".stage-")
+        }));
+    }
+    drop(store);
+    std::fs::remove_dir_all(folder).unwrap();
+}
+
+#[test]
+fn empty_roundtrips_keep_real_identity_without_accumulating_empty_snapshots() {
+    let folder = canonicalize(std::env::temp_dir()).unwrap()
+        .join(format!("baga-empty-roundtrip-{}", new_id().unwrap()));
+    let home = folder.join("home");
+    let vault = folder.join("vault");
+    private::directory(&home).unwrap();
+    fixture_write(home.join(".claude.json"), br#"{"oauthAccount":{"emailAddress":"fixture@example.invalid"}}"#).unwrap();
+    let mut store = store::Store::open(&vault, &home).unwrap();
+    let reporter = Reporter::channel(None);
+    store.switch("empty", "真实身份", &Policy::default(), &reporter).unwrap();
+    let id = store.records()[0].id.clone();
+    for _ in 0..3 {
+        store.switch(&id, "空工作区", &Policy::default(), &reporter).unwrap();
+        store.switch("empty", "真实身份", &Policy::default(), &reporter).unwrap();
+        assert_eq!(store.records().len(), 1);
+        assert!(!store.records()[0].empty);
+        assert_eq!(std::fs::read_dir(&vault).unwrap().flatten()
+            .filter(|e| e.path().extension().is_some_and(|s| s == "baga")).count(), 1);
+    }
+    // 空身份期间新增的会话仍有价值，不能因为当前指针为空就丢弃。
+    private::directory(&home.join(".claude")).unwrap();
+    fixture_write(home.join(".claude/history.jsonl"), b"new session while empty").unwrap();
+    store.switch(&id, "空身份期间的新会话", &Policy::default(), &reporter).unwrap();
+    assert_eq!(store.records().iter().filter(|r| !r.empty).count(), 2);
+    drop(store);
+    std::fs::remove_dir_all(folder).unwrap();
+}
+
+#[test]
+fn empty_rollback_and_recovery_remove_only_completed_empty_checkpoints() {
+    let folder = canonicalize(std::env::temp_dir()).unwrap()
+        .join(format!("baga-empty-recovery-{}", new_id().unwrap()));
+    let home = folder.join("home");
+    let vault = folder.join("vault");
+    private::directory(&home).unwrap();
+    fixture_write(home.join(".claude.json"), br#"{"oauthAccount":{"emailAddress":"fixture@example.invalid"}}"#).unwrap();
+    let mut store = store::Store::open(&vault, &home).unwrap();
+    let reporter = Reporter::channel(None);
+    let (target, stage) = store.save("真实身份", &Policy::default(), &reporter).unwrap();
+    store.db.remember(&target).unwrap();
+    drop(stage);
+    std::fs::remove_file(home.join(".claude.json")).unwrap();
+    store.fail_after_clear = true;
+    assert!(store.switch(&target.id, "空工作区", &Policy::default(), &reporter).is_err());
+    assert_eq!(store.records().len(), 1);
+    assert_eq!(store.db.get("active").unwrap().as_deref(), Some("empty"));
+    store.fail_after_clear = false;
+    let (empty, stage) = store.save("空恢复标记", &Policy::default(), &reporter).unwrap();
+    assert!(empty.empty);
+    store.db.pending(&empty, &target.id).unwrap();
+    drop(stage);
+    assert_eq!(store.records().len(), 2);
+    assert!(vault.join(&empty.archive).exists());
+    store.recover("空恢复检查点", &reporter).unwrap();
+    assert_eq!(store.records().len(), 1);
+    assert_eq!(store.records()[0].id, target.id);
+    assert_eq!(store.db.get("active").unwrap().as_deref(), Some("empty"));
+    assert!(store.db.get("recovery").unwrap().is_none());
+    assert_eq!(std::fs::read_dir(&vault).unwrap().flatten()
+        .filter(|e| e.path().extension().is_some_and(|s| s == "baga")).count(), 1);
+    drop(store);
+    std::fs::remove_dir_all(folder).unwrap();
+}

@@ -136,6 +136,12 @@ impl Database {
         }
         let records = self.records()?;
         let tx = self.connection.transaction().map_err(error)?;
+        // 空恢复标记回收后，当前指针不能悬挂在即将删除的空记录上。
+        tx.execute(
+            "UPDATE state SET value='empty' WHERE key='active' AND value IN (SELECT id FROM identities WHERE empty != 0)",
+            [],
+        )
+        .map_err(error)?;
         tx.execute("DELETE FROM identities WHERE empty != 0", [])
             .map_err(error)?;
         let mut seen = std::collections::HashMap::<String, String>::new();
