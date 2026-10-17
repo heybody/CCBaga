@@ -595,6 +595,8 @@ impl Store {
                     Some(1),
                 );
                 self.db.complete(&previous)?;
+                self.db.compact()?;
+                let _ = self.collect_generations();
                 reporter.log("rollback", "ok", "原身份选择已保留。", 1, Some(1));
                 return Err(error);
             }
@@ -615,6 +617,8 @@ impl Store {
                     self.db.complete(&record.id)
                 })();
                 if rollback.is_ok() {
+                    self.db.compact()?;
+                    let _ = self.collect_generations();
                     reporter.log("rollback", "ok", "已恢复切换前的身份。", 1, Some(1));
                     return Err(format!("{error} 已恢复切换前的身份。"));
                 }
