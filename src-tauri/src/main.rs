@@ -93,8 +93,6 @@ fn main() {
             app.manage(ui_language::UiLanguage::load(app.handle()));
             app.manage(cleaner::Cleaner::default());
             app.manage(browser::Browser::default());
-            #[cfg(target_os = "macos")]
-            browser::companion(app.handle().clone());
             #[cfg(target_os = "linux")]
             browser::open_urls(app.handle().clone(), std::env::args().collect());
             #[cfg(target_os = "windows")]
@@ -136,31 +134,14 @@ fn main() {
             cleaner::residue::claude_residue_clean,
             identities::identities_read,
             identities::identities_browser,
+            browser::browser_launch,
             identities::identities_stop,
             identities::identities_switch,
             identities::identities_rename,
             identities::identities_delete,
             claude_cli::claude_cli_read,
             claude_cli::claude_cli_manage,
-            regions::get_regions,
-            system::system_read,
-            system::system_set_timezone,
-            system::system_set_language,
-            system::system_disable_location,
-            system::system_open_settings,
-            system::system_set_region,
-            browser::browser_read,
-            browser::browser_save,
-            browser::browser_launch,
-            browser::browser_quit,
-            browser::browser_clear,
-            browser::browser_check,
-            browser::browser_align,
-            browser::browser_default_read,
-            browser::browser_set_default,
-            browser::browser_rotate,
-            network_links::network_open_resource,
-            network_links::network_diagnose_domains
+
         ])
         .build(tauri::generate_context!())
         .expect("无法启动 CCBaga-A")

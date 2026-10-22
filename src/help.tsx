@@ -9,26 +9,10 @@ import { useI18n } from './i18n';
 export function HelpPanel() {
     const { t } = useI18n();
     const topics = [
-        { title: t('傻瓜设置'), lines: [
-            t('选择地区，再点需要的操作。'),
-            t('缓存保留登录；换指纹会重启浏览器。')
-        ] },
         { title: t('Claude 身份管理'), lines: [
             t('暂存和切换会结束 Claude 进程，请先保存任务。'),
             t('登录随身份保存，其他资料由你选择保留或暂存。'),
             t('空身份留出新的本地工作区；永久删除无法恢复。')
-        ] },
-        { title: t('浏览器环境'), lines: [
-            t('先保存设置，再打开实测页。'),
-            t('全清理会删除当前身份的密码、书签、历史、扩展和设置，不留备份。')
-        ] },
-        { title: t('电脑环境'), lines: [
-            t('分别调整时区、语言和地区，不会改变公网 IP。'),
-            t('系统可能要求授权、重启或重新登录。')
-        ] },
-        { title: t('网络与 Skill'), lines: [
-            t('选择 AI 工具，复制提示词并交给它安装 Skill。'),
-            t('连接资料交给 AI；远端部署前由你确认。')
         ] }
     ];
     return <section className="system-page help-page">
@@ -44,7 +28,6 @@ export function HelpPanel() {
                 <summary>{t('账号与数据')}<span aria-hidden="true"/></summary>
                 <div className="help-copy">
                     <p>{t('本地操作不删除服务端记录，也不保证匿名或账号可用。')}</p>
-                    <p>{t('绿色结果仅表示本次已测项目匹配；DNS 和 WebRTC 需另行检查。')}</p>
                     <p>{t('账号使用仍须遵守 Anthropic 的条款和支持地区要求。')}</p>
                     <p>{t('密码、密钥和令牌不要放进公开日志或仓库。')}</p>
                 </div>
