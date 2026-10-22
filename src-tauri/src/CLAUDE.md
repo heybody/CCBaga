@@ -31,3 +31,5 @@ network_links.rs: 固定四域名并发只读 HTTP 探针；下载元数据仅�
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
 本地维护：v0.2.48基线保留动态备份路径校验与Desktop未知邮箱提示；详情见本地维护文档。
+
+本地身份专用版撤销系统设置、网络诊断与浏览器环境设置命令注册；保留身份关联兼容接口及数据结构，不启动macOS浏览器伴随注册。cleaner_identity.rs新增macOS Desktop身份配置字段。
