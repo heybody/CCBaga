@@ -1,5 +1,5 @@
 // [INPUT]: Cleaner 白名单、共享 Code 登录键常量、完整目录快照、用户保留策略与 JSON 配置。
-// [OUTPUT]: 受限身份目标、配置身份键与 githubRepoPaths 的提取/清空/恢复，保留工作区未选择的个人资产及桌面身份路径元数据检测。
+// [OUTPUT]: Desktop OAuth缓存/账号标识按字段暂存与恢复；受限身份目标、配置身份键与 githubRepoPaths 的提取/清空/恢复，保留工作区未选择的个人资产及桌面身份路径元数据检测。
 // [POS]: 动态备份恢复按名称/类别验证，不依赖原位存在； 身份保险库复用原有路径边界；不扫描项目源码、Shell 或系统代理配置。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -37,6 +37,10 @@ pub(crate) const SETTINGS_IDENTITY_KEYS: &[&str] = &[
     "env.ANTHROPIC_API_KEY",
     "env.ANTHROPIC_AUTH_TOKEN",
     "apiKeyHelper",
+];
+// Desktop 的身份字段与 Cookie/Safe Storage 一起切换，其他偏好仍留在工作区。
+pub(crate) const DESKTOP_IDENTITY_KEYS: &[&str] = &[
+    "oauth:tokenCache", "oauth:tokenCacheV2", "lastKnownAccountUuid",
 ];
 fn definitions(root: &Path, policy: &Policy) -> Vec<Source> {
     let mut result: Vec<_> = targets::definitions(root)
@@ -78,6 +82,14 @@ fn definitions(root: &Path, policy: &Policy) -> Vec<Source> {
         .find(|s| s.path == root.join(".claude/.credentials.json"))
     {
         source.keys = credential_keys(policy);
+    }
+    #[cfg(target_os = "macos")]
+    for desktop in targets::desktop_roots(root) {
+        result.push(Source {
+            path: desktop.join("config.json"),
+            category: "desktop".into(),
+            keys: DESKTOP_IDENTITY_KEYS.iter().map(|k| (*k).into()).collect(),
+        });
     }
     if !policy.mcp {
         let roots: std::collections::BTreeSet<_> = result
@@ -192,6 +204,8 @@ pub(crate) fn allowed(root: &Path, source: &Source) -> bool {
     let known = all.iter().any(|t| {
         t.path == source.path
             && t.category == source.category
+            // 部分字段白名单不能被空 keys 绕过成整文件恢复。
+            && !(t.category == "desktop" && t.path.file_name().is_some_and(|n| n == "config.json") && source.keys.is_empty())
             && ((source.path == root.join(".claude.json")
                 && source.category == "account"
                 && !source.keys.is_empty()
@@ -329,5 +343,13 @@ pub(crate) fn desktop_present(root: &Path) -> bool {
         .any(|s| {
             crate::identities::private::parents(s.path.parent().unwrap()).is_ok()
                 && crate::identities::private::safe(&s.path).is_ok()
+                && (s.keys.is_empty() || {
+                    // 只剩界面偏好时不能把空身份误判为已登录；异常配置保守显示存在。
+                    fs::metadata(&s.path).ok().filter(|m| m.len() <= 8 * 1024 * 1024)
+                        .and_then(|_| fs::read_to_string(&s.path).ok())
+                        .and_then(|text| extract(&s, &text).ok())
+                        .map(|value| value.as_object().is_some_and(|o| !o.is_empty()))
+                        .unwrap_or(true)
+                })
         })
 }

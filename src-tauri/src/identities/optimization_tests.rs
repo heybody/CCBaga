@@ -459,10 +459,13 @@ fn opening_and_switching_preserve_distinct_desktop_accounts_and_personal_setting
     );
     let assert_retained = || {
         for (name, text) in retained {
-            assert_eq!(
-                fs::read(f.home.join(desktop).join(name)).unwrap(),
-                text.as_bytes()
-            );
+            let bytes = fs::read(f.home.join(desktop).join(name)).unwrap();
+            if cfg!(target_os = "macos") && name == "config.json" {
+                let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(value["theme"], "dark");
+            } else {
+                assert_eq!(bytes, text.as_bytes());
+            }
         }
     };
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
@@ -640,4 +643,93 @@ fn unknown_slot_does_not_absorb_new_code_account_or_overwrite_empty_workspace() 
     assert!(empty.empty);
     assert_ne!(empty.id, a.id);
     assert!(f.vault.join(&a.archive).exists());
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn desktop_oauth_fields_roundtrip_preserve_preferences_and_refresh() {
+    let f = Fixture::new();
+    let path = "Library/Application Support/Claude/config.json";
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    let read = || -> serde_json::Value { serde_json::from_slice(&fs::read(f.home.join(path)).unwrap()).unwrap() };
+    f.write(path, br#"{"oauth:tokenCache":"old-a","oauth:tokenCacheV2":"a","lastKnownAccountUuid":"A","theme":"dark","unrelated":{"keep":true}}"#);
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    assert!(read().get("oauth:tokenCacheV2").is_none());
+    assert_eq!(read()["theme"], "dark");
+    assert!(!crate::cleaner::identity::desktop_present(&f.home));
+    f.write(path, br#"{"oauth:tokenCacheV2":"b","lastKnownAccountUuid":"B","theme":"light","unrelated":{"keep":true}}"#);
+    s.switch(&a, "B", &p, &r).unwrap();
+    let b = s.records().into_iter().find(|v|v.id != a).unwrap().id;
+    assert_eq!(read()["oauth:tokenCacheV2"], "a");
+    assert_eq!(read()["oauth:tokenCache"], "old-a");
+    assert_eq!(read()["lastKnownAccountUuid"], "A");
+    assert_eq!(read()["theme"], "light");
+    for _ in 0..3 {
+        s.switch(&b, "A", &p, &r).unwrap();
+        assert_eq!(read()["oauth:tokenCacheV2"], "b");
+        assert!(read().get("oauth:tokenCache").is_none());
+        s.switch(&a, "B", &p, &r).unwrap();
+        assert_eq!(read()["oauth:tokenCacheV2"], "a");
+        assert_eq!(s.records().len(), 2);
+    }
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn legacy_desktop_archive_restores_without_other_accounts_oauth_cache() {
+    let f = Fixture::new();
+    let path = "Library/Application Support/Claude/config.json";
+    let cookies = "Library/Application Support/Claude/Cookies";
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    // 模拟旧归档：只有Cookie，没有新增的config身份字段。
+    f.write(cookies, b"legacy-cookie");
+    s.switch("empty", "Legacy", &p, &r).unwrap();
+    let legacy = s.records()[0].id.clone();
+    f.write(path, br#"{"oauth:tokenCacheV2":"other-account","lastKnownAccountUuid":"other","theme":"light"}"#);
+    s.switch(&legacy, "New", &p, &r).unwrap();
+    assert_eq!(fs::read(f.home.join(cookies)).unwrap(), b"legacy-cookie");
+    let v: serde_json::Value = serde_json::from_slice(&fs::read(f.home.join(path)).unwrap()).unwrap();
+    assert!(v.get("oauth:tokenCacheV2").is_none());
+    assert!(v.get("lastKnownAccountUuid").is_none());
+    assert_eq!(v["theme"], "light");
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn desktop_config_allowlist_rejects_full_file_and_unknown_fields() {
+    let f = Fixture::new();
+    let mut source = crate::cleaner::identity::Source {
+        path: f.home.join("Library/Application Support/Claude/config.json"),
+        category: "desktop".into(), keys: vec!["oauth:tokenCacheV2".into()],
+    };
+    assert!(crate::cleaner::identity::allowed(&f.home, &source));
+    source.keys.clear();
+    assert!(!crate::cleaner::identity::allowed(&f.home, &source));
+    source.keys.push("theme".into());
+    assert!(!crate::cleaner::identity::allowed(&f.home, &source));
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn desktop_oauth_rollback_restores_outgoing_cache() {
+    let f = Fixture::new();
+    let path = "Library/Application Support/Claude/config.json";
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    f.write(path, br#"{"oauth:tokenCacheV2":"a","lastKnownAccountUuid":"A"}"#);
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    f.write(path, br#"{"oauth:tokenCacheV2":"b","lastKnownAccountUuid":"B","theme":"light"}"#);
+    s.fail_after_clear = true;
+    assert!(s.switch(&a, "B", &p, &r).is_err());
+    let v: serde_json::Value = serde_json::from_slice(&fs::read(f.home.join(path)).unwrap()).unwrap();
+    assert_eq!(v["oauth:tokenCacheV2"], "b");
+    assert_eq!(v["lastKnownAccountUuid"], "B");
+    assert!(s.db.get("recovery").unwrap().is_none());
 }
