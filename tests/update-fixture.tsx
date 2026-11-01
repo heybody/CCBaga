@@ -1,0 +1,11 @@
+import React from 'react';
+import {MotionRoot,TooltipProvider} from 'cromma-ui';
+import '../src/index.css';
+import {createRoot} from 'react-dom/client';
+import {mockIPC} from '@tauri-apps/api/mocks';
+import {AppUpdate} from '../src/app-update';
+import '../src/style.css';
+const fixture={commands:[] as {command:string,args:any}[],fail:'',info:{current:'0.2.50+local.9',latest:'0.2.50+local.10',available:true,supported:true}};
+Object.assign(window,{updateFixture:fixture});
+mockIPC((command,args:any)=>{fixture.commands.push({command,args});if(fixture.fail===command){fixture.fail='';throw Error('fixture update failed');}if(command==='plugin:app|version')return fixture.info.current;if(command==='local_update_check'||command==='local_update_download')return structuredClone(fixture.info);if(command==='local_update_install'){if(args.confirmed!==true)throw Error('consent missing');return;}if(command==='ui_language_read')return 'zh';});
+createRoot(document.getElementById('root')!).render(<MotionRoot><TooltipProvider><div style={{width:1040,height:820}}><AppUpdate blocked={false}/></div></TooltipProvider></MotionRoot>);

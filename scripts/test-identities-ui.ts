@@ -17,6 +17,7 @@ import {testNetworkDiagnostics} from './test-network-diagnostics.ts';
 import {testClaudeResidue} from './test-claude-residue.ts';
 import {testIdentityTransfer} from './test-identity-transfer.ts';
 import {testIdentityOperation} from './test-identity-operation.ts';
+import {testAppUpdate} from './test-app-update.ts';
 const engine=process.platform==='darwin'?'Browser.app/Contents/MacOS/Chromium':process.platform==='win32'?'WindowsBrowser/chrome.exe':'LinuxBrowser/chrome';
 const server=await createServer({server:{host:'127.0.0.1',port:0,strictPort:false,watch:{ignored:['**/src-tauri/**','**/browser-runtime/**','**/releases/**','**/dist/**']}},optimizeDeps:{include:['@tauri-apps/api/mocks']}});
 await server.listen();
@@ -146,6 +147,7 @@ try{
  await dialog.getByRole('button',{name:'Confirm deletion',exact:true}).click();
  await current.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.records.length),count);checks++;
  assert.equal(errors.length,0,errors.join('\n'));
+ checks+=await testAppUpdate(browser,base);
  checks+=await testBrowserVerification(browser,base);
  checks+=await testBrowserCleanup(browser,base);
  checks+=await testNetworkDiagnostics(browser,base);

@@ -35,3 +35,5 @@ network_links.rs: 固定四域名并发只读 HTTP 探针；下载元数据仅�
 本地身份专用版撤销系统设置、网络诊断与浏览器环境设置命令注册；保留身份关联兼容接口及数据结构，不启动macOS浏览器伴随注册。cleaner_identity.rs新增macOS Desktop身份配置字段。
 
 Windows local.8：desktop_roots 纳入 Claude-Data/claude_pzs8sxrjxfjjc，内置 CLI 无包身份时按精确版本/构建目录识别；保留原 SID/句柄保护。生产不注册 updater，local_release_open 仅打开 heybody/CCBaga 的固定发布页。
+
+local_update.rs: 固定 heybody/CCBaga Release 列表，比较 local 构建数字，忽略缺少 Windows 安装器/校验文件的发布；限域 HTTPS 下载、私有原生路径与两次 SHA-256 核验、事务锁和显式确认安装，不接收 URL/文件路径，不结束 Claude。

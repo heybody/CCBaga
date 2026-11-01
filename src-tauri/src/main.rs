@@ -14,6 +14,7 @@ mod identities;
 mod linux;
 mod native;
 mod network_links;
+mod local_update;
 mod progress;
 mod regions;
 mod system;
@@ -99,6 +100,7 @@ fn main() {
         .setup(|app| {
             startup_trace("host setup");
             app.manage(ui_language::UiLanguage::load(app.handle()));
+            app.manage(local_update::Updates::default());
             app.manage(cleaner::Cleaner::default());
             app.manage(browser::Browser::default());
             app.manage(identities::portable::Transfers::default());
@@ -134,6 +136,9 @@ fn main() {
             ui_language::ui_language_write,
             runtime_platform,
             local_release_open,
+            local_update::local_update_check,
+            local_update::local_update_download,
+            local_update::local_update_install,
             open_permissions,
             unlock_keychain,
             copy_result,
