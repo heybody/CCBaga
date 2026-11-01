@@ -669,6 +669,7 @@ fn windows_redirected_appdata_remains_whitelisted() {
     let sources = super::identity::sources(&root, &crate::identities::Policy::default()).unwrap();
     assert!(sources.iter().any(|source| source.path == Path::new(&cookie.path)));
     assert!(sources.iter().any(|source| source.path == outside.join("local/Claude-Data/claude_pzs8sxrjxfjjc/config.json")));
-    assert!(sources.iter().any(|source| source.path == outside.join("local/Claude-Data/claude_pzs8sxrjxfjjc/Network/Cookies")));
+    // Network 整目录进入快照，去重后不会再列出其中的 Cookies 单文件。
+    assert!(sources.iter().any(|source| source.path == outside.join("local/Claude-Data/claude_pzs8sxrjxfjjc/Network")));
     assert!(sources.iter().all(|source| super::identity::allowed(&root, source)));
 }
