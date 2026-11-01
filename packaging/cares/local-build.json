@@ -1,5 +1,8 @@
 {
-  "version": "0.2.48+local.2",
+  "version": "0.2.48+local.3",
   "build": {"beforeBuildCommand": "bun run build"},
-  "bundle": {"macOS": {"signingIdentity": "-"}}
+  "bundle": {
+    "macOS": {"signingIdentity": "-"},
+    "resources": {"../browser-runtime/Browser.zip": null}
+  }
 }
