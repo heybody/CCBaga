@@ -1,11 +1,12 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.6`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.7`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
 - 安装包不含浏览器 B 引擎（`local-build.json` 删除 `Browser.zip` 资源），约 57 MB；CI 只为 UI 模拟测试下载引擎。
 - `0.2.50+local.2` 新增两个开关（身份页顶部）：「会话带入新账号」——会话留在工作区跟着切换，目标账号归档里的旧会话补缺并入（不覆盖，同名 .jsonl 追加），旧会话不会因下次归档丢失；「快速切换（不压缩）」——zstd -7，格式不变，新旧归档互相可读。实测 114 MiB 会话压缩不到 1 秒，切换耗时主要在 Desktop 资料读写与归档完整验收，会话带入对提速更有效。回归 `carry_sessions_keeps_live_history_and_merges_archived_without_overwrite`。
+- `0.2.50+local.7` 增加 Windows x64 构建：`cares-build.yml` 的 windows 任务（windows-2025）跑前端与 Rust 全量测试（141 项），用 `packaging/cares/local-build.json` + `local-build-windows.json` 出当前用户 NSIS 安装包（不含浏览器 B 引擎与 B 快捷方式，未代码签名），标签构建附到同一 Release（`CCD-Switch_<版本>_windows_x64-setup.exe` + `checksums-windows.txt`）。兼容修正：侧栏会话卡片改用 `desktop_roots`（Windows 为 `%APPDATA%\Claude` 与 MSIX 路径）；Windows 的 Desktop `config.json` OAuth 缓存也随身份切换（DPAPI 本机共用，无钥匙串问题）；测试的 Desktop 路径按平台换算，原 macOS 专属的 Desktop 登录缓存测试同时在 Windows 运行。macOS 行为不变。
 - `0.2.50+local.6` 带入未归档会话补上 Desktop 侧栏：Desktop 的 Code 会话卡片按 `claude-code-sessions/<账号>/<组织>/local_*.json` 分账号存放（卡片无账号字段，社区 claude-code-session-restorer 同样靠复制卡片恢复），开关打开时切换成功后把上一个账号 `isArchived:false` 的卡片挪到新账号目录；已归档、非卡片文件留在原处，同名不覆盖，失败只提示不影响切换。卡片里原账号的远程连接器配置与远程控制会话 ID 到新账号下可能无效。回归 `carry_sessions_moves_unarchived_desktop_sidebar_cards_to_the_new_account`。
 - `0.2.50+local.5` 借鉴 claude-multi-accounts：Desktop 的 `Claude Safe Storage` 是本机所有账号共用的加密密钥，不再随身份读、删、写（原生快照不再读取，Rust `credentials::account_items` 过滤旧归档里的副本，副本保留在归档中备用）。local.4 的原地改值实测仍会让系统把分区列表重置为写入程序，Claude 每次切换仍要密码，故改为完全不碰。代价：以前切空身份时被删重建过密钥，旧归档里的 Desktop 登录可能是用另一把密钥加密的，切过去后 Desktop 显示未登录，需重新登录一次再「更新备份」。Code 的钥匙串项目照常切换。回归 `desktop_key_is_never_switched` 与原生隔离钥匙串测试。
 - `0.2.50+local.4` 程序显示名改为 **CCD Switch**（`/Applications/CCD Switch.app`、窗口标题、托盘、侧栏品牌）；Bundle ID `ai.local.requirement-french`、保险库目录与数据不变，安装脚本替换旧名 `CCBaga-A.app`。钥匙串：切换时目标身份也有的项目（如 `Claude Safe Storage`）不再先删后建，而是原地改值，保留用户给 Claude Desktop 的「始终允许」与分区授权；以前每次切换都重建该项，Desktop 每次都要求输入钥匙串密码。切换到空身份、回滚与崩溃恢复仍删除重建（少见）。回归 `switching_keeps_items_the_target_also_has_for_in_place_update`。

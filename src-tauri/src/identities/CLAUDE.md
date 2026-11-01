@@ -26,4 +26,4 @@ browser_link_tests.rs: 默认勾选/显式关闭保留与身份摘要无令牌/�
 
 本地未知账号普通保存沿用选中槽位；空工作区、新账号与恢复检查点仍独立；工作区槽位不冒充真实账号验证。
 
-macOS本地增强：Desktop config.json仅随身份保存OAuth缓存两代字段和lastKnownAccountUuid；保留其他偏好，旧归档缺字段仍可恢复且清除当前账号缓存。四项回归覆盖往返、旧归档、回滚和白名单。
+macOS/Windows本地增强：Desktop config.json仅随身份保存OAuth缓存两代字段和lastKnownAccountUuid；保留其他偏好，旧归档缺字段仍可恢复且清除当前账号缓存。四项回归覆盖往返、旧归档、回滚和白名单。
