@@ -1005,6 +1005,8 @@
 
 "检测结果无效，请重试。": "Invalid check results. Try again."
 
+"会话带入新账号": "Carry sessions to new account"
+"快速切换（不压缩）": "Fast switch (no compression)"
 "联动浏览器": "Link browser"
 "关闭浏览器联动": "Unlink browser"
 "独立浏览器": "Separate browser"

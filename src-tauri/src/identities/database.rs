@@ -266,6 +266,19 @@ impl Database {
             .optional()
             .map_err(error)
     }
+    /// 本地维护开关（carry_sessions / fast_archive），未设置即关闭。
+    pub fn flag(&self, key: &str) -> Result<bool, String> {
+        Ok(self.get(key)?.as_deref() == Some("1"))
+    }
+    pub fn set_flag(&self, key: &str, on: bool) -> Result<(), String> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO state VALUES(?1,?2)",
+                params![key, if on { "1" } else { "0" }],
+            )
+            .map(|_| ())
+            .map_err(error)
+    }
     pub fn remember(&self, record: &Record) -> Result<(), String> {
         let saved_at = i64::try_from(record.saved_at).map_err(|_| "身份元数据无效。")?;
         let bytes = i64::try_from(record.bytes).map_err(|_| "身份元数据无效。")?;

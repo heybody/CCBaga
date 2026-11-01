@@ -143,6 +143,7 @@ fn main() {
             browser::browser_launch,
             identities::identities_stop,
             identities::identities_save,
+            identities::identities_options,
             identities::identities_switch,
             identities::identities_rename,
             identities::identities_delete,

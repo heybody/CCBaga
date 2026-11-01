@@ -310,7 +310,9 @@ impl Store {
             let output =
                 codec::Seal::new(private::create(&pending)?, &self.key).map_err(problem)?;
             let buffered = BufWriter::with_capacity(64 * 1024, output);
-            let mut tar = tar::Builder::new(compression::encode(buffered).map_err(problem)?);
+            let fast = self.db.flag("fast_archive")?;
+            let mut tar =
+                tar::Builder::new(compression::encode_level(buffered, fast).map_err(problem)?);
             reporter.log(
                 "archive",
                 "running",

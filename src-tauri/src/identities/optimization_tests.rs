@@ -813,3 +813,46 @@ fn desktop_oauth_rollback_restores_outgoing_cache() {
     assert_eq!(v["lastKnownAccountUuid"], "B");
     assert!(s.db.get("recovery").unwrap().is_none());
 }
+#[test]
+fn carry_sessions_keeps_live_history_and_merges_archived_without_overwrite() {
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    // A 的会话在开关打开前随身份归档。
+    f.login("A", "one", "a-token");
+    f.write(".claude/projects/p/a.jsonl", b"a-session");
+    f.write(".claude/projects/p/shared.jsonl", b"a-shared");
+    f.write(".claude/history.jsonl", b"a-prompt");
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    assert!(!f.home.join(".claude/projects/p/a.jsonl").exists());
+    f.login("B", "one", "b-token");
+    f.write(".claude/projects/p/b.jsonl", b"b-session");
+    f.write(".claude/projects/p/shared.jsonl", b"b-shared");
+    f.write(".claude/history.jsonl", b"b-prompt");
+    s.db.set_flag("carry_sessions", true).unwrap();
+    s.db.set_flag("fast_archive", true).unwrap();
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    let read = |path: &str| fs::read(f.home.join(path)).unwrap();
+    // 当前会话带入，A 的旧会话只补缺，同名非 jsonl 以外的文件不覆盖、jsonl 追加。
+    assert_eq!(read(".claude/projects/p/b.jsonl"), b"b-session");
+    assert_eq!(read(".claude/projects/p/a.jsonl"), b"a-session");
+    assert_eq!(read(".claude/projects/p/shared.jsonl"), b"b-shared\na-shared");
+    assert_eq!(read(".claude/history.jsonl"), b"b-prompt\na-prompt");
+    let b_row = s.records().into_iter().find(|row| row.id != a).unwrap();
+    assert!(b_row.policy.history);
+    let b = b_row.id;
+    // B 的归档（快速档）不含会话；切回 B 后工作区会话保持不变、不重复追加。
+    s.switch(&b, "A", &p, &r).unwrap();
+    assert_eq!(f.token(), "b-token");
+    assert_eq!(read(".claude/projects/p/shared.jsonl"), b"b-shared\na-shared");
+    assert_eq!(read(".claude/history.jsonl"), b"b-prompt\na-prompt");
+    // 关闭开关后恢复原语义：会话随身份归档。
+    s.db.set_flag("carry_sessions", false).unwrap();
+    s.db.set_flag("fast_archive", false).unwrap();
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
+}

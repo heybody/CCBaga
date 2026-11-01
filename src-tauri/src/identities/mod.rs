@@ -84,6 +84,13 @@ pub struct State {
     pub recovery: Option<String>,
     pub running: bool,
     pub current: profile::Current,
+    pub options: Options,
+}
+/// 本地维护开关：会话带入新账号、快速切换（不压缩）。
+#[derive(Serialize)]
+pub struct Options {
+    pub carry_sessions: bool,
+    pub fast_archive: bool,
 }
 pub(crate) fn new_id() -> Result<String, String> {
     Ok(codec::random::<16>()?
@@ -140,7 +147,28 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
         recovery: db.get("recovery")?,
         running,
         current: profile::read(&root_path),
+        options: Options {
+            carry_sessions: db.flag("carry_sessions")?,
+            fast_archive: db.flag("fast_archive")?,
+        },
     })
+}
+#[tauri::command]
+pub async fn identities_options(
+    app: tauri::AppHandle,
+    carry_sessions: bool,
+    fast_archive: bool,
+) -> Result<State, String> {
+    let cleaner = app.state::<crate::cleaner::Cleaner>();
+    cleaner.enter()?;
+    let result = (|| {
+        let db = database::Database::open(&vault(&app)?)?;
+        db.set_flag("carry_sessions", carry_sessions)?;
+        db.set_flag("fast_archive", fast_archive)?;
+        state(&app)
+    })();
+    cleaner.leave();
+    result
 }
 #[tauri::command]
 pub async fn identities_read(app: tauri::AppHandle) -> Result<State, String> {

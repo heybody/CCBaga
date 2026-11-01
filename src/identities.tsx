@@ -96,6 +96,12 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   }
   catch(e) {setError(String(e));return false;} finally {setLoading(false);}
  }
+ async function setOptions(change:Partial<IdentityState['options']>) {
+  const current=state?.options??{carry_sessions:false,fast_archive:false};
+  const next={...current,...change};
+  try {setState(await invoke<IdentityState>('identities_options',{carrySessions:next.carry_sessions,fastArchive:next.fast_archive}));setError('');}
+  catch(e) {setError(String(e));}
+ }
  async function refreshAfterError() {
   setResidueRevision(value=>value+1);
   try {setState(await invoke<IdentityState>('identities_read'));} catch {/* 保留操作错误，不掩盖恢复失败。 */}
@@ -155,12 +161,13 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   try {setState(await invoke<IdentityState>('identities_rename',{id:rename.id,value:renameValue}));setRename(null);setError('');}
   catch(e) {setError(String(e));} finally {setBusy(false);}
  }
- const options=<div className="identity-policy-grid">{policyRows.map(([key,label])=><div className="identity-policy-row" key={key}><Checkbox label={t(label)} checked={policy[key]} disabled={locked} onCheckedChange={checked=>setPolicy(old=>({...old,[key]:checked}))}/></div>)}</div>;
+ const carry=state?.options?.carry_sessions??false;
+ const options=<div className="identity-policy-grid">{policyRows.map(([key,label])=><div className="identity-policy-row" key={key}><Checkbox label={t(label)} checked={key==='history'&&carry?true:policy[key]} disabled={locked||(key==='history'&&carry)} onCheckedChange={checked=>setPolicy(old=>({...old,[key]:checked}))}/></div>)}</div>;
  return <section className="identity-page">
   <header className="cleanup-title"><h1>{t('Claude 身份管理')}</h1><Button variant="secondary" size="small" disabled={locked||loading} leftIcon={<Refresh aria-hidden size={16} className={loading?'spin':''}/>} onClick={()=>void read()}>{t('刷新')}</Button></header>
   {error&&<p role="alert" className="cleanup-feedback error">{t(error)}</p>}
   {state?.recovery&&<div className="identity-recovery" role="alert"><strong>{t('有一次身份切换尚未完成')}</strong><Button size="small" variant="ink" disabled={locked||loading} onClick={()=>choose('recovery')}>{t('恢复原身份')}</Button></div>}
-    <section className="identity-library"><div className="identity-section-head"><h2>{t('身份')}</h2><div className="identity-library-controls"><span className="identity-count">{saved.length} {t('暂存身份')}</span><Button size="small" variant="secondary" disabled={blocked} onClick={()=>setTransfer('import')}>{t('导入')}</Button><Checkbox label={t('联动浏览器')} checked={state?.browser.enabled??false} disabled={blocked} onCheckedChange={value=>{setUseExisting(false);setBrowserReview(value===true);setError('');}}/></div></div>
+    <section className="identity-library"><div className="identity-section-head"><h2>{t('身份')}</h2><div className="identity-library-controls"><span className="identity-count">{saved.length} {t('暂存身份')}</span><Button size="small" variant="secondary" disabled={blocked} onClick={()=>setTransfer('import')}>{t('导入')}</Button><Checkbox label={t('会话带入新账号')} checked={carry} disabled={blocked} onCheckedChange={value=>void setOptions({carry_sessions:value===true})}/><Checkbox label={t('快速切换（不压缩）')} checked={state?.options?.fast_archive??false} disabled={blocked} onCheckedChange={value=>void setOptions({fast_archive:value===true})}/><Checkbox label={t('联动浏览器')} checked={state?.browser.enabled??false} disabled={blocked} onCheckedChange={value=>{setUseExisting(false);setBrowserReview(value===true);setError('');}}/></div></div>
    <div className="identity-card-rail" ref={rail} tabIndex={0} role="region" aria-label={t('身份')}>
     <IdentityCard className={`identity-card empty${current?.present===false?' selected':''}`} label={current?.present===false?`${t('空身份')} · ${t('当前身份')}`:t('空身份')}>
      <div className="identity-card-head"><div className="identity-avatar" aria-hidden="true">∅</div></div>

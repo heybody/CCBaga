@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 目录、用户策略、白名单源、已验收归档代次、认证加密与平台凭据桥。
-// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换、持久恢复记录、原位配置合并、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
+// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换（会话带入开关：会话留在工作区并补缺并入目标旧会话）、持久恢复记录、原位配置合并、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
 // [POS]: 身份的文件事务；SQLite 与文件系统由恢复日志协调，不能假装是同一原子事务。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{
     fs,
-    io::{self},
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 use zeroize::Zeroizing;
@@ -430,7 +430,8 @@ impl Store {
             return Err("请先恢复未完成的身份切换。".into());
         }
         self.stopped()?;
-        let (mut record, stage) = self.save(name, policy, reporter)?;
+        let (_, policy) = self.carry_policy(policy)?;
+        let (mut record, stage) = self.save(name, &policy, reporter)?;
         if record.empty {
             return Err("当前未检测到可暂存的登录凭据或身份数据。".into());
         }
@@ -449,6 +450,77 @@ impl Store {
         );
         Ok(())
     }
+    /// 会话带入开关打开时，会话历史一律留在工作区，不随身份归档。
+    fn carry_policy(&self, policy: &Policy) -> Result<(bool, Policy), String> {
+        let carry = self.db.flag("carry_sessions")?;
+        let mut policy = policy.clone();
+        if carry {
+            policy.history = true;
+        }
+        Ok((carry, policy))
+    }
+    /// 把目标归档里的旧会话并入工作区：只补缺、不覆盖；同名 .jsonl 文件把归档内容追加到末尾。
+    /// 这样目标账号下次被归档时（会话已不进归档）旧会话也不会丢。
+    fn merge_history(&self, stage: &Stage, reporter: &Reporter) -> Result<(), String> {
+        let sources: Vec<_> = stage
+            .manifest
+            .sources
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.category == "history" && s.keys.is_empty())
+            .collect();
+        reporter.log("restore", "running", "正在并入目标身份的旧会话。", 0, Some(sources.len()));
+        for (index, (n, source)) in sources.iter().enumerate() {
+            self.stopped()?;
+            if !identity::allowed(&self.home, source) {
+                return Err("身份路径超出允许范围。".into());
+            }
+            let data = stage.path.join(format!("data/{n}"));
+            private::parents(source.path.parent().unwrap())?;
+            let merge_file = |from: &Path, to: &Path| -> Result<(), String> {
+                if !to.exists() {
+                    private::directory(to.parent().unwrap())?;
+                    let mut dest = private::create(to)?;
+                    io::copy(&mut fs::File::open(from).map_err(problem)?, &mut dest)
+                        .map_err(problem)?;
+                    return dest.sync_all().map_err(problem);
+                }
+                private::safe(to)?;
+                if to.extension().is_some_and(|x| x == "jsonl") {
+                    let old = fs::read(from).map_err(problem)?;
+                    if old.is_empty() {
+                        return Ok(());
+                    }
+                    let mut dest = fs::OpenOptions::new().append(true).open(to).map_err(problem)?;
+                    if fs::metadata(to).map_err(problem)?.len() > 0 {
+                        dest.write_all(b"\n").map_err(problem)?;
+                    }
+                    dest.write_all(&old).map_err(problem)?;
+                    return dest.sync_all().map_err(problem);
+                }
+                Ok(())
+            };
+            if data.is_dir() {
+                walk(&data, &data, &mut |path, relative, directory| {
+                    self.during_io()?;
+                    let target = source.path.join(relative);
+                    if directory {
+                        if !target.exists() {
+                            private::directory(&target)?;
+                        }
+                        Ok(())
+                    } else {
+                        merge_file(path, &target)
+                    }
+                })?;
+            } else if data.is_file() {
+                merge_file(&data, &source.path)?;
+            }
+            reporter.log("restore", "running", "已并入目标身份的旧会话。", index + 1, Some(sources.len()));
+        }
+        reporter.log("restore", "ok", "目标身份的旧会话已并入工作区。", sources.len(), Some(sources.len()));
+        Ok(())
+    }
     pub fn switch(
         &mut self,
         target: &str,
@@ -459,6 +531,8 @@ impl Store {
         if self.db.get("recovery")?.is_some() {
             return Err("请先恢复未完成的身份切换。".into());
         }
+        let (carry, policy) = self.carry_policy(policy)?;
+        let policy = &policy;
         reporter.log("validate", "running", "正在核对当前身份。", 0, None);
         let live_key = super::catalog::live_key(&self.home, &self.key)?;
         reporter.log("validate", "ok", "当前本地身份已核对。", 1, Some(1));
@@ -563,6 +637,9 @@ impl Store {
             reporter.log("credentials", "ok", "当前本地登录凭据已清除。", 1, Some(1));
             if let Some(stage) = incoming.as_ref() {
                 self.restore(stage, &next, policy, reporter, "restore")?;
+                if carry {
+                    self.merge_history(stage, reporter)?;
+                }
             }
             reporter.log(
                 "commit",

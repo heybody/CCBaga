@@ -1,10 +1,17 @@
 // [INPUT]: 已认证解密流、Zstandard 和旧版 gzip 魔数。
-// [OUTPUT]: 新归档的快速 Zstd 编码器及兼容旧归档的有界窗口解码器。
+// [OUTPUT]: 新归档的 Zstd 编码器（默认级别 3，快速切换开关用负级别 -7）及兼容旧归档的有界窗口解码器。
 // [POS]: 压缩格式适配层，不改变外层 BAGAID01 的认证和密钥协议。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use std::io::{self, BufRead, BufReader, Read, Write};
 pub fn encode<W: Write>(output: W) -> io::Result<zstd::stream::write::Encoder<'static, W>> {
-    let mut encoder = zstd::stream::write::Encoder::new(output, 3)?;
+    encode_level(output, false)
+}
+/// fast=true 用 zstd 负级别近似不压缩，仍是同一 zstd 帧格式，新旧归档互相可读。
+pub fn encode_level<W: Write>(
+    output: W,
+    fast: bool,
+) -> io::Result<zstd::stream::write::Encoder<'static, W>> {
+    let mut encoder = zstd::stream::write::Encoder::new(output, if fast { -7 } else { 3 })?;
     encoder.include_checksum(true)?;
     Ok(encoder)
 }
