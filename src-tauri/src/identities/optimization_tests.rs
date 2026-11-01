@@ -935,3 +935,41 @@ fn fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mi
         }
     }
 }
+#[test]
+fn carry_sessions_moves_unarchived_desktop_sidebar_cards_to_the_new_account() {
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    let cards = "Library/Application Support/Claude/claude-code-sessions";
+    let card = |account: &str, org: &str, name: &str| format!("{cards}/{account}/{org}/{name}");
+    // B 先登录并暂存，之后在 A 上工作。
+    f.login("bbbbbbbb-0000", "org-bbbb-0000", "b-token");
+    s.switch("empty", "B", &p, &r).unwrap();
+    let b = s.records()[0].id.clone();
+    f.login("aaaaaaaa-0000", "org-aaaa-0000", "a-token");
+    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json"), br#"{"isArchived":false,"title":"open"}"#);
+    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json"), br#"{"isArchived":true}"#);
+    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json"), br#"{"isArchived":false,"from":"a"}"#);
+    f.write(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"), br#"{"isArchived":false,"from":"b"}"#);
+    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json"), b"{}");
+    s.db.set_flag("carry_sessions", true).unwrap();
+    s.switch(&b, "A", &p, &r).unwrap();
+    assert_eq!(f.token(), "b-token");
+    let exists = |path: &str| f.home.join(path).exists();
+    assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+    assert!(!exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json")));
+    // 已归档、非卡片文件留在原账号；同名不覆盖。
+    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json")));
+    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json")));
+    assert_eq!(
+        fs::read(f.home.join(card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"))).unwrap(),
+        br#"{"isArchived":false,"from":"b"}"#
+    );
+    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json")));
+    // 关闭开关后不再挪动。
+    s.db.set_flag("carry_sessions", false).unwrap();
+    let a = s.records().into_iter().find(|row| row.id != b).unwrap().id;
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+}

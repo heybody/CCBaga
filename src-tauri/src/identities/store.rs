@@ -556,6 +556,59 @@ impl Store {
         reporter.log("restore", "ok", "目标身份的旧会话已并入工作区。", sources.len(), Some(sources.len()));
         Ok(())
     }
+    /// 当前 Code 登录的账号与组织编号；Desktop 侧栏会话卡片按这两级目录存放。
+    pub(super) fn desktop_account(&self) -> Option<(String, String)> {
+        let value: serde_json::Value =
+            serde_json::from_slice(&fs::read(self.home.join(".claude.json")).ok()?).ok()?;
+        let id = |key: &str| {
+            let text = value["oauthAccount"][key].as_str()?;
+            ((8..=100).contains(&text.len())
+                && text.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+            .then(|| text.to_string())
+        };
+        Some((id("accountUuid")?, id("organizationUuid")?))
+    }
+    /// 带入未归档会话：Desktop 侧栏只列当前账号目录下的卡片，把上一个账号的未归档卡片挪到新账号目录。
+    /// 已归档的留在原账号；新账号已有同名卡片不覆盖。卡片不含账号字段，对话记录本就在共享的 ~/.claude/projects。
+    pub(super) fn carry_desktop_sessions(&self, from: &(String, String)) -> Result<usize, String> {
+        let Some(to) = self.desktop_account() else {
+            return Ok(0);
+        };
+        if *from == to {
+            return Ok(0);
+        }
+        let root = self
+            .home
+            .join("Library/Application Support/Claude/claude-code-sessions");
+        let source = root.join(&from.0).join(&from.1);
+        let target = root.join(&to.0).join(&to.1);
+        if !fs::symlink_metadata(&source).is_ok_and(|m| m.is_dir()) {
+            return Ok(0);
+        }
+        let mut moved = 0;
+        for entry in fs::read_dir(&source).map_err(problem)? {
+            let entry = entry.map_err(problem)?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !(name.starts_with("local_") && name.ends_with(".json"))
+                || !entry.file_type().map_err(problem)?.is_file()
+                || entry.metadata().map_err(problem)?.len() > 8 * 1024 * 1024
+            {
+                continue;
+            }
+            let Ok(card) = serde_json::from_slice::<serde_json::Value>(
+                &fs::read(entry.path()).map_err(problem)?,
+            ) else {
+                continue;
+            };
+            if card["isArchived"] != serde_json::Value::Bool(false) || target.join(&name).exists() {
+                continue;
+            }
+            private::directory(&target)?;
+            fs::rename(entry.path(), target.join(&name)).map_err(problem)?;
+            moved += 1;
+        }
+        Ok(moved)
+    }
     pub fn switch(
         &mut self,
         target: &str,
@@ -568,6 +621,7 @@ impl Store {
         }
         let (carry, policy) = self.carry_policy(policy)?;
         let policy = &policy;
+        let carry_from = if carry { self.desktop_account() } else { None };
         reporter.log("validate", "running", "正在核对当前身份。", 0, None);
         let live_key = super::catalog::live_key(&self.home, &self.key)?;
         reporter.log("validate", "ok", "当前本地身份已核对。", 1, Some(1));
@@ -762,6 +816,13 @@ impl Store {
         self.db.compact()?;
         // 目录已提交后才回收旧代次；回收失败保留加密文件，不把成功切换报为失败。
         let _ = self.collect_generations();
+        if let Some(from) = carry_from {
+            // 侧栏卡片在切换成功后挪；失败只提示，不影响已完成的切换。
+            match self.carry_desktop_sessions(&from) {
+                Ok(n) => reporter.log("verify", "running", "已把未归档会话带入 Desktop 侧栏。", n, Some(n)),
+                Err(_) => reporter.log("verify", "running", "Desktop 侧栏会话未能全部带入，对话记录不受影响。", 0, Some(1)),
+            }
+        }
         reporter.log(
             "verify",
             "ok",
