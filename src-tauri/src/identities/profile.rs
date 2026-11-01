@@ -488,7 +488,7 @@ mod tests {
         super::super::private::directory(&folder).unwrap();
         super::super::private::write(&folder.join(".claude.json"), b"{}").unwrap();
         assert!(!read(&folder).present);
-        let desktop = folder.join("Library/Application Support/Claude");
+        let desktop = crate::cleaner::identity::desktop_roots(&folder)[0].clone();
         super::super::private::directory(&desktop).unwrap();
         super::super::private::write(&desktop.join("Cookies"), b"opaque fixture").unwrap();
         let current = read(&folder);

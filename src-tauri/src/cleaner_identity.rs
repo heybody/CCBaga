@@ -83,7 +83,8 @@ fn definitions(root: &Path, policy: &Policy) -> Vec<Source> {
     {
         source.keys = credential_keys(policy);
     }
-    #[cfg(target_os = "macos")]
+    // Windows 的 Desktop 同样把 OAuth 缓存存在 config.json（DPAPI 加密，本机同一用户共用），一起随身份切换。
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     for desktop in targets::desktop_roots(root) {
         result.push(Source {
             path: desktop.join("config.json"),
@@ -344,6 +345,10 @@ pub(crate) fn account_key(key: &str) -> bool {
 }
 
 // ----- 只检查桌面身份路径元数据，不读取 Cookie 或数据库正文 -----
+/// Desktop 资料目录（macOS 应用支持目录；Windows 的 Roaming/Local 与 MSIX 路径）。
+pub(crate) fn desktop_roots(root: &Path) -> Vec<std::path::PathBuf> {
+    targets::desktop_roots(root)
+}
 pub(crate) fn desktop_present(root: &Path) -> bool {
     definitions(root, &Policy::default())
         .into_iter()

@@ -1,0 +1,12 @@
+{
+  "build": { "beforeBuildCommand": "bun run build" },
+  "bundle": {
+    "resources": {
+      "../browser-runtime/version.txt": null,
+      "../browser-runtime/LICENSE.fingerprint-chromium": null,
+      "../browser-runtime/WindowsBrowser/": null,
+      "../browser-runtime/icons/browser.ico": null
+    },
+    "windows": { "nsis": { "installerHooks": null } }
+  }
+}

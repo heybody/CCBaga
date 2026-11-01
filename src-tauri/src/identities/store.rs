@@ -577,16 +577,20 @@ impl Store {
         if *from == to {
             return Ok(0);
         }
-        let root = self
-            .home
-            .join("Library/Application Support/Claude/claude-code-sessions");
-        let source = root.join(&from.0).join(&from.1);
-        let target = root.join(&to.0).join(&to.1);
-        if !fs::symlink_metadata(&source).is_ok_and(|m| m.is_dir()) {
-            return Ok(0);
-        }
         let mut moved = 0;
-        for entry in fs::read_dir(&source).map_err(problem)? {
+        for desktop in crate::cleaner::identity::desktop_roots(&self.home) {
+            let root = desktop.join("claude-code-sessions");
+            let source = root.join(&from.0).join(&from.1);
+            let target = root.join(&to.0).join(&to.1);
+            if fs::symlink_metadata(&source).is_ok_and(|m| m.is_dir()) {
+                moved += Self::move_cards(&source, &target)?;
+            }
+        }
+        Ok(moved)
+    }
+    fn move_cards(source: &Path, target: &Path) -> Result<usize, String> {
+        let mut moved = 0;
+        for entry in fs::read_dir(source).map_err(problem)? {
             let entry = entry.map_err(problem)?;
             let name = entry.file_name().to_string_lossy().into_owned();
             if !(name.starts_with("local_") && name.ends_with(".json"))

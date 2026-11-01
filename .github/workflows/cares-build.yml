@@ -1,4 +1,4 @@
-# CCBaga-A 本地维护构建：身份/前端/原生回归 + macOS arm64 宿主 A（debug、custom-protocol、ad-hoc 签名，不含浏览器 B 引擎）。
+# CCD Switch（原 CCBaga-A）本地维护构建：身份/前端/原生回归 + macOS arm64（debug、ad-hoc 签名）与 Windows x64 NSIS 安装包，均不含浏览器 B 引擎。
 # 浏览器引擎只在分支构建时下载，供 UI 模拟测试当无头浏览器，不打进安装包。
 # 推 cares/** 分支跑全部检查并上传构建产物；推 v*local.* 标签只构建并发布 Release（zip + checksums.txt），
 # 不重复跑测试——标签必须打在分支 CI 已通过的提交上。版本取 packaging/cares/local-build.json，标签须与之一致。
@@ -23,6 +23,8 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 90
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -80,4 +82,68 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" out/* --title "$GITHUB_REF_NAME" --notes "CCD Switch（原 CCBaga-A）本地维护构建（身份管理专用），基于上游 ${GITHUB_REF_NAME%%+*}；ad-hoc 签名，仅供 mbp 安装脚本使用"
+        run: gh release create "$GITHUB_REF_NAME" out/* --title "$GITHUB_REF_NAME" --notes "CCD Switch（原 CCBaga-A）本地维护构建（身份管理专用），基于上游 ${GITHUB_REF_NAME%%+*}；ad-hoc 签名，macOS 包仅供 mbp 安装脚本使用；Windows 安装包未签名"
+
+  # Windows x64：当前用户 NSIS 安装包，同样不含浏览器 B 引擎与 B 快捷方式（packaging/cares/local-build-windows.json）。
+  # 未做代码签名，首次运行 SmartScreen 会提示；标签构建把安装包附到 macOS 任务已创建的同一 Release。
+  windows:
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      TAURI_CONFIG: '{"bundle":{"resources":{"../browser-runtime/version.txt":null,"../browser-runtime/LICENSE.fingerprint-chromium":null,"../browser-runtime/WindowsBrowser/":null,"../browser-runtime/icons/browser.ico":null},"windows":{"nsis":{"installerHooks":null}}}}'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.2'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: 工具链与依赖
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          rustup toolchain install 1.98.1 --profile minimal
+          if($LASTEXITCODE){exit $LASTEXITCODE}
+          rustup default 1.98.1
+          bun install --frozen-lockfile
+          if($LASTEXITCODE){exit $LASTEXITCODE}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: windows-msvc
+          cache-on-failure: true
+      - name: 下载测试用浏览器引擎
+        if: github.ref_type != 'tag'
+        run: python scripts/fetch-browser.py
+      - name: 回归测试
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: |
+          bun test
+          bun run build
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
+      - name: 构建 CCD Switch 安装包
+        shell: bash
+        run: bun run tauri build --bundles nsis --features custom-protocol --config packaging/cares/local-build.json --config packaging/cares/local-build-windows.json
+      - name: 打包
+        shell: bash
+        run: |
+          V=${{ needs.build.outputs.version }}
+          mkdir -p out
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe "out/CCD-Switch_${V}_windows_x64-setup.exe"
+          cd out && sha256sum *.exe > checksums-windows.txt && cat checksums-windows.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: CCD-Switch-${{ needs.build.outputs.version }}-windows-x64
+          path: out/
+      - name: 附到 Release
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" out/* --clobber

@@ -941,8 +941,11 @@ fn carry_sessions_moves_unarchived_desktop_sidebar_cards_to_the_new_account() {
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    let cards = "Library/Application Support/Claude/claude-code-sessions";
-    let card = |account: &str, org: &str, name: &str| format!("{cards}/{account}/{org}/{name}");
+    let desktop = crate::cleaner::identity::desktop_roots(&f.home)[0].clone();
+    let cards = desktop.strip_prefix(&f.home).unwrap().join("claude-code-sessions");
+    let card = |account: &str, org: &str, name: &str| {
+        cards.join(account).join(org).join(name).to_string_lossy().into_owned()
+    };
     // B 先登录并暂存，之后在 A 上工作。
     f.login("bbbbbbbb-0000", "org-bbbb-0000", "b-token");
     s.switch("empty", "B", &p, &r).unwrap();
