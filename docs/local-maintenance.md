@@ -89,4 +89,4 @@ python3 builds/ccbaga-maintenance/install-host.py
 - 精确识别新路径下无 MSIX 包身份的内置 Code：三段数字版本/12 位十六进制构建编号/claude.exe，保留 SID、创建时间和进程句柄复核。
 - 定制版更新入口改成手动打开 fork 的 Releases；移除生产 updater 注册、配置与权限，避免上游原版覆盖身份专用补丁。
 - 增加新旧路径共存、空身份、往返、回滚、保留 Cowork/程序/Local State、重定向 AppData 与进程路径边界回归，侧栏测试遍历所有资料根目录。
-- win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；[原生 CI](https://github.com/heybody/CCBaga/actions/runs/41295567076) 的 macOS 与 Windows 回归通过，Windows 安装包仍在构建。安装包代码提交为 `12b930b`；未操作真实账号。
+- win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；[原生 CI](https://github.com/heybody/CCBaga/actions/runs/41295567076) 的 macOS（140 项）与 Windows（144 项，0 失败、2 忽略）回归及安装包构建通过。Windows 包 SHA-256 为 `3119213fa9d558833bc6c9050536aef9a0b48655af6090524e1a44786c9763dd`，版本资源为 `0.2.50+local.8`，未代码签名。安装包代码提交为 `12b930b`；未操作真实账号。
