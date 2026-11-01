@@ -26,7 +26,7 @@ int main(void){@autoreleasepool{
         add(@"Claude Code-credentials",@"sibling",@"{\"claudeAiOauth\":{\"accessToken\":\"sibling\"}}");
         add(@"Claude Code",@"first",@"fixture-api");add(@"Claude Safe Storage",@"first",@"fixture-storage");
         add(@"Claude Code-credentials-custom",@"first",@"custom-kept");add(@"unrelated-fixture",@"first",@"unrelated-kept");
-        NSArray *saved=json(rf_identity_snapshot())[@"items"];NSCAssert(saved.count==4,@"snapshot escaped default services");
+        NSArray *saved=json(rf_identity_snapshot())[@"items"];NSCAssert(saved.count==3,@"snapshot escaped default services");
         NSDictionary *first=nil;for(NSDictionary *row in saved)if([row[@"service"] isEqual:@"Claude Code-credentials"]&&[row[@"account"] isEqual:@"first"])first=row;
         NSCAssert(first!=nil,@"Code fixture missing");
         NSMutableDictionary *partial=[first mutableCopy];partial[@"remaining"]=[[@"{\"mcpOAuth\":\"keep\"}" dataUsingEncoding:NSUTF8StringEncoding] base64EncodedStringWithOptions:0];
@@ -35,12 +35,12 @@ int main(void){@autoreleasepool{
         NSMutableDictionary *restore=[first mutableCopy];restore[@"expected"]=partial[@"remaining"];
         NSCAssert([json(rf_identity_restore(input(@[restore])))[@"ok"] boolValue],@"conditional restore failed");
         NSCAssert([json(rf_identity_remove(input(@[first])))[@"ok"] boolValue],@"exact clear failed");
-        NSCAssert([json(rf_identity_snapshot())[@"items"] count]==3,@"sibling was removed");
+        NSCAssert([json(rf_identity_snapshot())[@"items"] count]==2,@"sibling was removed");
         NSCAssert([json(rf_identity_restore(input(@[first])))[@"ok"] boolValue],@"restore absent credential failed");
-        NSCAssert([json(rf_identity_snapshot())[@"items"] count]==4,@"restore missing");
+        NSCAssert([json(rf_identity_snapshot())[@"items"] count]==3,@"restore missing");
         NSCAssert([json(rf_identity_remove(input(saved)))[@"ok"] boolValue],@"default entries clear failed");
         NSCAssert([json(rf_identity_snapshot())[@"items"] count]==0,@"default entries remain");
-        for(NSString *service in @[@"Claude Code-credentials-custom",@"unrelated-fixture"]){
+        for(NSString *service in @[@"Claude Code-credentials-custom",@"unrelated-fixture",@"Claude Safe Storage"]){
             CFTypeRef raw=NULL;NSCAssert(SecItemCopyMatching((__bridge CFDictionaryRef)@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:service,(__bridge id)kSecMatchSearchList:@[(__bridge id)fixture],(__bridge id)kSecReturnAttributes:@YES},&raw)==errSecSuccess,@"unrelated/custom entry changed");CFRelease(raw);
         }
     }@finally{SecKeychainDelete(fixture);CFRelease(fixture);}

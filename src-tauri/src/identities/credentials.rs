@@ -37,6 +37,16 @@ pub fn clear(items: &[Value], policy: &Policy) -> Result<Vec<Value>, String> {
         })
         .collect()
 }
+/// Desktop 的「Claude Safe Storage」是本机所有账号共用的加密密钥，不是账号凭据：切换、恢复、删除都不再读写它。
+/// 改写这一项会让系统重置分区授权，Claude Desktop 每次切换都要输入钥匙串密码。旧归档里存的副本保留不用。
+pub const DESKTOP_KEY: &str = "Claude Safe Storage";
+pub fn account_items(items: &[Value]) -> Vec<Value> {
+    items
+        .iter()
+        .filter(|item| item["service"] != DESKTOP_KEY)
+        .cloned()
+        .collect()
+}
 /// 切换时只删除目标身份没有的钥匙串项目；同服务同账户的项目由 restore 原地改值。
 /// 删除后重建会丢掉用户给 Claude 的「始终允许」与分区授权，Desktop 每次切换都会要求输入钥匙串密码。
 pub fn not_replaced(outgoing: &[Value], incoming: &[Value]) -> Vec<Value> {
@@ -103,6 +113,12 @@ mod tests {
         assert_eq!(value["claudeAiOauth"]["accessToken"], "target");
         assert_eq!(value["mcpOAuth"], "latest");
         assert_eq!(value["pluginSecrets"], "keep-plugin");
+    }
+    #[test]
+    fn desktop_key_is_never_switched() {
+        let row = |service: &str| serde_json::json!({"service":service,"account":"a","data":"eA=="});
+        let kept = account_items(&[row(DESKTOP_KEY), row("Claude Code-credentials")]);
+        assert_eq!(kept, vec![row("Claude Code-credentials")]);
     }
     #[test]
     fn switching_keeps_items_the_target_also_has_for_in_place_update() {

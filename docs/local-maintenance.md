@@ -1,11 +1,12 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.4`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.5`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
 - 安装包不含浏览器 B 引擎（`local-build.json` 删除 `Browser.zip` 资源），约 57 MB；CI 只为 UI 模拟测试下载引擎。
 - `0.2.50+local.2` 新增两个开关（身份页顶部）：「会话带入新账号」——会话留在工作区跟着切换，目标账号归档里的旧会话补缺并入（不覆盖，同名 .jsonl 追加），旧会话不会因下次归档丢失；「快速切换（不压缩）」——zstd -7，格式不变，新旧归档互相可读。实测 114 MiB 会话压缩不到 1 秒，切换耗时主要在 Desktop 资料读写与归档完整验收，会话带入对提速更有效。回归 `carry_sessions_keeps_live_history_and_merges_archived_without_overwrite`。
+- `0.2.50+local.5` 借鉴 claude-multi-accounts：Desktop 的 `Claude Safe Storage` 是本机所有账号共用的加密密钥，不再随身份读、删、写（原生快照不再读取，Rust `credentials::account_items` 过滤旧归档里的副本，副本保留在归档中备用）。local.4 的原地改值实测仍会让系统把分区列表重置为写入程序，Claude 每次切换仍要密码，故改为完全不碰。代价：以前切空身份时被删重建过密钥，旧归档里的 Desktop 登录可能是用另一把密钥加密的，切过去后 Desktop 显示未登录，需重新登录一次再「更新备份」。Code 的钥匙串项目照常切换。回归 `desktop_key_is_never_switched` 与原生隔离钥匙串测试。
 - `0.2.50+local.4` 程序显示名改为 **CCD Switch**（`/Applications/CCD Switch.app`、窗口标题、托盘、侧栏品牌）；Bundle ID `ai.local.requirement-french`、保险库目录与数据不变，安装脚本替换旧名 `CCBaga-A.app`。钥匙串：切换时目标身份也有的项目（如 `Claude Safe Storage`）不再先删后建，而是原地改值，保留用户给 Claude Desktop 的「始终允许」与分区授权；以前每次切换都重建该项，Desktop 每次都要求输入钥匙串密码。切换到空身份、回滚与崩溃恢复仍删除重建（少见）。回归 `switching_keeps_items_the_target_also_has_for_in_place_update`。
 - `0.2.50+local.3` 快速切换改为「挪数据」：开关打开时，切换出去的身份把缓存与会话历史（cache/history 类、整路径来源）整目录挪到 `identity-vault/<代次>.plain/data/{n}`，不压缩、不打包、不复核；登录、账号与配置类仍进加密归档并验收。归档 manifest 新增可选字段 `plain`（为空时与旧格式逐字节同构），旧完整归档照旧解包读取，第一次切入某个旧格式身份时仍较慢一次。恢复时缓存/会话一律同盘 rename；回滚与崩溃恢复用可重入的 `park` 先把数据挪回各自代次。原地备份与恢复检查点仍是完整归档；导出遇到挪动存放的数据缺失（该身份正在工作区）会提示先「更新备份」。旧代次与删除卡片时同名 `.plain` 目录一起回收。开关「会话带入新账号」更名「带入未归档会话」，目标账号旧会话改为挪入（不复制；同名 .jsonl 追加后删除存放副本）。回归 `fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mix`。
 - 上一版 `codex/desktop-auth-identity-only`（v0.2.48）在 fork 上为 `cares/desktop-auth-identity-only`，Release `v0.2.48+local.3` 可作回退。

@@ -22,7 +22,8 @@ char *rf_identity_snapshot(void){
     if(opened!=errSecSuccess)return failure(opened);
     id search=CFBridgingRelease(keychain);
     NSMutableArray *saved=[NSMutableArray array];
-    for(NSString *service in @[@"Claude Code-credentials",@"Claude Code",@"Claude Safe Storage"]){
+    // Desktop 的 Claude Safe Storage 是本机共用的加密密钥，不随身份读写；读它也会触发钥匙串授权。
+    for(NSString *service in @[@"Claude Code-credentials",@"Claude Code"]){
         CFTypeRef raw=NULL;
         OSStatus status=SecItemCopyMatching((__bridge CFDictionaryRef)@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:service,(__bridge id)kSecMatchLimit:(__bridge id)kSecMatchLimitAll,(__bridge id)kSecReturnAttributes:@YES,(__bridge id)kSecReturnPersistentRef:@YES,(__bridge id)kSecMatchSearchList:@[search]},&raw);
         if(status==errSecItemNotFound)continue;if(status!=errSecSuccess)return failure(status);

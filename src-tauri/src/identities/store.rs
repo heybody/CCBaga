@@ -141,6 +141,7 @@ impl Store {
         if identity::root().ok().as_ref() != Some(&self.home) {
             return Ok(());
         }
+        let items = &super::credentials::account_items(items);
         let transformed = if restore {
             super::credentials::restore(items, &native::identity_snapshot()?, policy)?
         } else {
