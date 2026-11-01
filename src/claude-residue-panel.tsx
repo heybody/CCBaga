@@ -9,6 +9,7 @@ import {Button,Checkbox} from 'cromma-ui';
 import {Refresh} from 'cromma-ui/pika';
 import {invoke} from '@tauri-apps/api/core';
 import {AppDialog} from './dialog';
+import {ClaudeStopConsent} from './claude-stop-consent';
 import type {ActivityController} from './cleaner-activity';
 import {deselectItems,effectiveItems,formatBytes,riskLabels,type CleanResult,type Scan} from './cleaner-model';
 import {useI18n} from './i18n';
@@ -18,6 +19,7 @@ export function ClaudeResiduePanel({activity,blocked,revision,onBusy,onChanged}:
  const [scan,setScan]=useState<Scan|null>(null),[ids,setIds]=useState<string[]>([]);
  const [action,setAction]=useState<'scan'|'clean'|null>(null),[review,setReview]=useState(false),[accepted,setAccepted]=useState(false);
  const [error,setError]=useState('');
+ const [stopAccepted,setStopAccepted]=useState(false);
  const items=scan?.items??[],available=items.filter(item=>item.exact);
  const selected=effectiveItems(items,ids),all=effectiveItems(available,available.map(item=>item.id));
  const bytes=(rows:typeof items)=>rows.reduce((sum,item)=>sum+item.bytes,0);
@@ -35,13 +37,13 @@ export function ClaudeResiduePanel({activity,blocked,revision,onBusy,onChanged}:
   }catch(e){setError(String(e));activity.finish(false,String(e));}finally{setAction(null);}
  }
  async function clean(){
-  if(!review||!accepted||action||!selected.length)return;
+  if(!review||!accepted||!stopAccepted||action||!selected.length)return;
   const chosen=selected.map(item=>item.id);
   setReview(false);setAction('clean');setError('');setScan(null);setIds([]);
   const onProgress=activity.start('clean','清理所选文件');
   let failure='',cleaned=0;
   try{
-   await invoke('identities_stop',{onProgress:activity.channel()});
+   await invoke('identities_stop',{confirmed:stopAccepted,onProgress:activity.channel()});
    const result=await invoke<CleanResult>('claude_residue_clean',{ids:chosen,onProgress});
    cleaned=result.cleaned;
    if(!result.completed||result.errors.length)failure=result.errors.join('\n')||'清理未完成，请检查剩余文件。';
@@ -65,16 +67,16 @@ export function ClaudeResiduePanel({activity,blocked,revision,onBusy,onChanged}:
      <div className="claude-residue-file"><div className="claude-residue-file-title"><strong>{t(item.title)}</strong><span className={`claude-residue-risk ${item.risk}`}>{t(item.exact?riskLabels[item.risk]||item.risk:'统计不完整')}</span></div><code>{item.path}</code>{item.keys.length>0&&<span className="claude-residue-fields">{t('仅移除字段')} <code>{item.keys.join(', ')}</code></span>}<span className="claude-residue-impact">{t(item.impact)}</span></div>
      <div className="claude-residue-size">{item.exact?<><strong>{formatBytes(item.bytes)}</strong><span>{t('{v0} 个文件',{v0:item.files})}</span></>:<span>—</span>}</div>
     </li>)}</ul>
-    <div className="claude-residue-footer"><span>{t('个人设置、Skills、暂存身份和浏览器资料保留；不访问钥匙串。')}</span><Button variant="ink" size="small" disabled={locked||!selected.length} onClick={()=>{setAccepted(false);setReview(true);}}>{t('清理所选')}</Button></div>
+    <div className="claude-residue-footer"><span>{t('个人设置、Skills、暂存身份和浏览器资料保留；不访问钥匙串。')}</span><Button variant="ink" size="small" disabled={locked||!selected.length} onClick={()=>{setAccepted(false);setStopAccepted(false);setReview(true);}}>{t('清理所选')}</Button></div>
    </>}
   </>}
-  <AppDialog alert className="identity-delete-alert" open={review} onOpenChange={open=>{if(!action)setReview(open);}} title={t('清理所选文件')} description={t('将结束 Claude 进程，直接删除所选文件或列出的配置字段，不创建备份。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setReview(false)}>{t('取消')}</Button><Button variant="ink" className="identity-delete-button" disabled={!accepted||!!action||!selected.length} onClick={()=>void clean()}>{t('确认清理')}</Button></>}>
+  <AppDialog alert className="identity-delete-alert" open={review} onOpenChange={open=>{if(!action)setReview(open);}} title={t('清理所选文件')} description={t('将结束 Claude 进程，直接删除所选文件或列出的配置字段，不创建备份。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setReview(false)}>{t('取消')}</Button><Button variant="ink" className="identity-delete-button" disabled={!accepted||!stopAccepted||!!action||!selected.length} onClick={()=>void clean()}>{t('结束进程并清理')}</Button></>}>
    <div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>
     <div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{t('{v0} 项 · {v1}',{v0:selected.length,v1:formatBytes(bytes(selected))})}</strong></div>
     <ul className="claude-residue-review">{selected.map(item=><li key={item.id}><strong>{t(item.title)}</strong><code>{item.path}</code>{item.keys.length>0&&<span>{t('仅移除字段')} <code>{item.keys.join(', ')}</code></span>}</li>)}</ul>
     {selected.some(item=>item.risk==='login')&&<p>{t('所选登录数据会被移除，需要重新登录。')}</p>}
     {selected.some(item=>item.risk==='history'||item.risk==='backup')&&<p>{t('所选历史或备份将永久删除。')}</p>}
-    <Checkbox label={t('我知道此操作无法撤销')} checked={accepted} onCheckedChange={setAccepted}/>
+    <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/><Checkbox label={t('我知道此操作无法撤销')} checked={accepted} onCheckedChange={setAccepted}/>
    </div>
   </AppDialog>
  </section>;

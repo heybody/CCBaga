@@ -1,6 +1,6 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.9`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.10`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
@@ -100,3 +100,12 @@ python3 builds/ccbaga-maintenance/install-host.py
 - 不操作用户桌面、不安装或切换真实身份。
 
 local.9 验证：代码 `ebec208` 的 [CI 41312737786](https://github.com/heybody/CCBaga/actions/runs/41312737786) 成功，前端 24 项、界面模拟 67 项、macOS Rust 141 项、Windows Rust 145 项通过（Rust 各 0 失败、2 忽略）。Windows 候选安装包版本 `0.2.50+local.9`，SHA-256 `1c0acdcf443bff1e74f198135dc6f345cc78754dd85e160784f6f8e3914f1092` 已核对；未另发 local.9 Release，未安装。
+
+## 2026-11-01 local.10 明确确认后才结束进程
+
+用户反馈 local.9 的备份确认按钮未明确写出会结束当前进程。原说明位于长段落中，不能代替醒目告知。
+
+- 身份保存/更新、切换/恢复、当前身份删除、CLI 维护及文件清理统一增加强制结束 Claude Desktop/Code、任务中断和未保存内容可能丢失的警告。
+- 每次操作的进程确认默认不勾选；未勾选时按钮禁用且执行函数拒绝；取消后不发送结束/变更请求。保存、切换、恢复和维护的按钮直接写出结束进程。
+- 默认焦点在取消；原生 identities_stop 只接受 confirmed=true，缺失/false 均在任何进程结束前拒绝。
+- 仅修改代码和隔离测试，不操作用户桌面、安装软件或结束真实进程。

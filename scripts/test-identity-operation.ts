@@ -31,7 +31,8 @@ export async function testIdentityOperation(browser:Browser,base:string) {
   assert.equal(await operation.count(),0);
   await page.evaluate(()=>(window as any).identityFixture.defer('identities_stop','identities_switch'));
   await page.getByRole('button',{name:'使用空身份',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'确认暂存并切换',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+  await page.getByRole('dialog').getByRole('button',{name:'结束进程、暂存并切换',exact:true}).click();
   await pending(page,'identities_stop');await operation.waitFor();
   assert.equal(await operation.evaluate(node=>node.previousElementSibling?.classList.contains('identity-card-rail')),true);
   const bar=operation.getByRole('progressbar');
@@ -61,7 +62,8 @@ export async function testIdentityOperation(browser:Browser,base:string) {
   await page.evaluate(()=>(window as any).identityFixture.defer('identities_switch'));
   const saved=page.locator('.identity-card').filter({has:page.getByRole('heading',{name:'Identity 3',exact:true})});
   await saved.getByRole('button',{name:'切换',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'确认暂存并切换',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+  await page.getByRole('dialog').getByRole('button',{name:'结束进程、暂存并切换',exact:true}).click();
   await pending(page,'identities_switch');
   await emit(page,'identities_switch',{stage:'restore',message:'fixture restoring saved identity',current:2,total:8});
   await operation.getByText('fixture restoring saved identity').first().waitFor();
@@ -78,7 +80,8 @@ export async function testIdentityOperation(browser:Browser,base:string) {
   await residue.getByRole('button',{name:'清理所选',exact:true}).click();
   let dialog=page.getByRole('alertdialog',{name:'清理所选文件',exact:true});
   await dialog.getByRole('checkbox',{name:'我知道此操作无法撤销',exact:true}).check();
-  await dialog.getByRole('button',{name:'确认清理',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+  await dialog.getByRole('button',{name:'结束进程并清理',exact:true}).click();
   await pending(page,'claude_residue_clean');
   await emit(page,'claude_residue_clean',{stage:'clean',message:'fixture cleaning 1 of 2',current:1,total:2});
   await operation.getByText('fixture cleaning 1 of 2').first().waitFor();
@@ -96,7 +99,8 @@ export async function testIdentityOperation(browser:Browser,base:string) {
   // ----- 失败事件与回滚不能被百分比或已完成样式掩盖 -----
   await page.evaluate(()=>(window as any).identityFixture.defer('identities_switch'));
   await page.getByRole('button',{name:'使用空身份',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'确认暂存并切换',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+  await page.getByRole('dialog').getByRole('button',{name:'结束进程、暂存并切换',exact:true}).click();
   await pending(page,'identities_switch');
   await emit(page,'identities_switch',{stage:'archive',status:'error',message:'fixture archive verification failed',current:1,total:4});
   await emit(page,'identities_switch',{stage:'rollback',status:'running',message:'fixture rollback restoring current files'});
@@ -118,7 +122,8 @@ export async function testIdentityOperation(browser:Browser,base:string) {
   // ----- 拒绝先抵达、相同通道错误后抵达时也只留一条，保留原生阶段 -----
   await page.evaluate(()=>(window as any).identityFixture.defer('identities_switch'));
   await page.getByRole('button',{name:'使用空身份',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'确认暂存并切换',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+  await page.getByRole('dialog').getByRole('button',{name:'结束进程、暂存并切换',exact:true}).click();
   await pending(page,'identities_switch');
   const callback=await page.evaluate(()=>{
    const channel=(window as any).identityFixture.commands.filter((row:any)=>row.command==='identities_switch').at(-1).args.onProgress;

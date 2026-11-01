@@ -29,3 +29,5 @@ browser_link_tests.rs: 默认勾选/显式关闭保留与身份摘要无令牌/�
 macOS/Windows本地增强：Desktop config.json仅随身份保存OAuth缓存两代字段和lastKnownAccountUuid；保留其他偏好，旧归档缺字段仍可恢复且清除当前账号缓存。四项回归覆盖往返、旧归档、回滚和白名单。
 
 Windows local.8 回归：新 Claude-Data 登录字段/Cookie 与旧路径共存、空身份、A/B 往返和故障回滚，Cowork/内置 CLI/共享 Local State 保留；侧栏测试遍历 desktop_roots 全部目录。
+
+local.10：identities_stop 缺失 confirmed 或不为 true 时在任务锁/原生结束进程前直接拒绝，不沿用旧版无确认调用。

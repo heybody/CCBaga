@@ -1275,3 +1275,13 @@
 "定制版更新": "Custom build updates"
 "本版本通过定制版发布页手动更新，请下载对应系统的安装包。": "Update this custom build manually from its releases page. Download the installer for your operating system."
 "打开定制版发布页": "Open custom releases"
+
+"继续将强制结束 Claude Desktop 和 Claude Code 进程，正在执行的任务会中断，未保存内容可能丢失。": "Continuing will forcibly terminate Claude Desktop and Claude Code processes. Running tasks will be interrupted and unsaved work may be lost."
+"请先保存任务并正常退出 Claude；也可以取消此次操作。": "Save your work and quit Claude normally first, or cancel this operation."
+"我已保存任务，同意结束 Claude 进程": "I have saved my work and agree to end Claude processes"
+"结束进程并保存备份": "End processes & save backup"
+"结束进程、暂存并切换": "End processes, archive & switch"
+"结束进程并恢复": "End processes & restore"
+"结束进程并继续": "End processes & continue"
+"结束进程并清理": "End processes & clean"
+"未明确同意结束 Claude 进程；未执行操作。": "Explicit consent to end Claude processes was not given; nothing was done."

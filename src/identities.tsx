@@ -11,6 +11,7 @@ import {motion, useMotionValue, useSpring} from 'motion/react';
 import {invoke} from '@tauri-apps/api/core';
 import {useI18n} from './i18n';
 import {AppDialog} from './dialog';
+import {ClaudeStopConsent} from './claude-stop-consent';
 import {IdentityOperationProgress, useCleanupActivity} from './cleaner-activity';
 import {formatBytes} from './cleaner-model';
 import {IdentityTransfer} from './identity-transfer';
@@ -33,6 +34,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [cliBusy,setCliBusy]=useState(false);
  const [residueBusy,setResidueBusy]=useState(false),[residueRevision,setResidueRevision]=useState(0);
  const [error,setError]=useState('');
+ const [stopAccepted,setStopAccepted]=useState(false);
  const [transfer,setTransfer]=useState<Identity|'import'|null>(null),[transferBusy,setTransferBusy]=useState(false);
  const [review,setReview]=useState<Target|null>(initialEmpty?'empty':null);
  const [name,setName]=useState(t('当前身份'));
@@ -115,13 +117,13 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   setName(target==='recovery'?t('恢复前状态'):target==='save'?(active?.name||currentName).slice(0,64):currentName.slice(0,64));
   if(target==='recovery') {const previous=state?.records.find(row=>row.id===state.recovery);if(previous)setPolicy({...previous.policy});}
   else if(target==='save'&&active)setPolicy({...active.policy});
-  setReview(target);setError('');
+  setStopAccepted(false);setReview(target);setError('');
  }
  async function stop() {
-  await invoke('identities_stop',{onProgress:activity.channel()});
+  await invoke('identities_stop',{confirmed:stopAccepted,onProgress:activity.channel()});
  }
  async function change() {
-  if(!review||busy)return;
+  if(!review||busy||!stopAccepted)return;
   const target=review;setReview(null);setBusy(true);setError('');
   const onProgress=activity.start('identity',target==='recovery'?'恢复原身份':target==='save'?'保存当前身份备份':target==='empty'?'切换到空身份':'切换身份');
   try {
@@ -135,9 +137,9 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   } catch(e) {setError(String(e));activity.finish(false,String(e));await refreshAfterError();}
   finally {setBusy(false);}
  }
- function confirmDelete(target:Identity|'current') {setDeletion(target);setAccepted(false);setDeleteBrowser(false);setError('');}
+ function confirmDelete(target:Identity|'current') {setDeletion(target);setStopAccepted(false);setAccepted(false);setDeleteBrowser(false);setError('');}
  async function remove() {
-  if(!deletion||!accepted||busy)return;
+  if(!deletion||!accepted||busy||(deletion==='current'&&!stopAccepted))return;
   const target=deletion;setDeletion(null);setBusy(true);setError('');
   const onProgress=activity.start('identity',target==='current'?'直接删除当前身份':'删除暂存身份');
   try {
@@ -201,11 +203,11 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   <ClaudeResiduePanel activity={activity} blocked={locked||loading||!state||!!state?.recovery} revision={residueRevision} onBusy={setResidueBusy} onChanged={async()=>{if(!await read(false))throw new Error('身份状态刷新失败，请重新检查。');}}/>
   <ClaudeCliPanel blocked={locked||loading||!!state?.recovery} onBusy={setCliBusy}/>
   <IdentityTransfer target={transfer} hasBrowser={typeof transfer==='object'&&transfer!==null&&!!state?.browser.bound_ids.includes(transfer.id)} onClose={()=>setTransfer(null)} onBusy={setTransferBusy} onState={setState} activity={activity}/>
-  <AppDialog open={!!review} onOpenChange={open=>{if(!open&&!busy)setReview(null);}} title={review==='recovery'?t('恢复原身份'):review==='save'?t(active?'更新当前身份备份':'保存当前身份备份'):review==='empty'?t('切换到空身份'):t('切换身份')} description={t(review==='save'?'将结束已识别的 Claude 进程，把当前身份原地加密写入保险库；当前工作区与登录保持不变。':'先压缩暂存当前 Claude Code 与 Desktop 状态，再切换。将结束已识别的 Claude 进程，未保存任务会中断。')} footer={<><Button variant="secondary" onClick={()=>setReview(null)}>{t('取消')}</Button><Button variant="ink" disabled={busy||loading||!state||!name.trim()||(review!=='recovery'&&!!state.recovery)} onClick={()=>void change()}>{review==='recovery'?t('确认恢复'):review==='save'?t('确认保存备份'):t('确认暂存并切换')}</Button></>}>
-   <div className="identity-confirm"><label htmlFor="identity-current-name">{t('当前身份保存为')}</label><Input id="identity-current-name" maxLength={64} value={name} onChange={e=>setName(e.target.value)}/>{typeof review==='object'&&review&&<div className="identity-confirm-target"><span>{t('目标身份')}</span><strong>{review.name}</strong></div>}{review==='save'&&<div className="identity-confirm-keep"><span>{t('纳入加密备份')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div>}<div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div><div className="identity-active-processes"><span>{t('Claude 进程（确认后结束）')}</span>{state?.processes==null?<p>{t('进程状态未知；执行前将重新核验。')}</p>:state.processes.length?<ul>{state.processes.map(process=><li key={process.pid}><code>PID {process.pid}</code><span>{process.entrypoint}</span></li>)}</ul>:<p>{t('未检测到 Claude 进程。')}</p>}{state?.processes_truncated&&<p>{t('仅显示前 32 个进程；执行时重新核验完整范围。')}</p>}</div>{state?.browser.enabled&&review!=='save'&&<p>{t('将关闭并重开关联浏览器，请先保存网页任务。')}</p>}<p>{t('只管理本地状态；失效的登录可能需要重新认证。')}</p></div>
+  <AppDialog open={!!review} onOpenChange={open=>{if(!open&&!busy)setReview(null);}} title={review==='recovery'?t('恢复原身份'):review==='save'?t(active?'更新当前身份备份':'保存当前身份备份'):review==='empty'?t('切换到空身份'):t('切换身份')} description={t(review==='save'?'将结束已识别的 Claude 进程，把当前身份原地加密写入保险库；当前工作区与登录保持不变。':'先压缩暂存当前 Claude Code 与 Desktop 状态，再切换。将结束已识别的 Claude 进程，未保存任务会中断。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setReview(null)}>{t('取消')}</Button><Button variant="ink" disabled={!stopAccepted||busy||loading||!state||!name.trim()||(review!=='recovery'&&!!state.recovery)} onClick={()=>void change()}>{review==='recovery'?t('结束进程并恢复'):review==='save'?t('结束进程并保存备份'):t('结束进程、暂存并切换')}</Button></>}>
+   <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/><div className="identity-confirm"><label htmlFor="identity-current-name">{t('当前身份保存为')}</label><Input id="identity-current-name" maxLength={64} value={name} onChange={e=>setName(e.target.value)}/>{typeof review==='object'&&review&&<div className="identity-confirm-target"><span>{t('目标身份')}</span><strong>{review.name}</strong></div>}{review==='save'&&<div className="identity-confirm-keep"><span>{t('纳入加密备份')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div>}<div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div><div className="identity-active-processes"><span>{t('Claude 进程（确认后结束）')}</span>{state?.processes==null?<p>{t('进程状态未知；执行前将重新核验。')}</p>:state.processes.length?<ul>{state.processes.map(process=><li key={process.pid}><code>PID {process.pid}</code><span>{process.entrypoint}</span></li>)}</ul>:<p>{t('未检测到 Claude 进程。')}</p>}{state?.processes_truncated&&<p>{t('仅显示前 32 个进程；执行时重新核验完整范围。')}</p>}</div>{state?.browser.enabled&&review!=='save'&&<p>{t('将关闭并重开关联浏览器，请先保存网页任务。')}</p>}<p>{t('只管理本地状态；失效的登录可能需要重新认证。')}</p></div>
   </AppDialog>
-  <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
-   <div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}{typeof deletion==='object'&&deletion&&state?.browser.bound_ids.includes(deletion.id)&&<Checkbox label={t('同时永久删除关联浏览器资料')} checked={deleteBrowser} onCheckedChange={value=>setDeleteBrowser(value===true)}/>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>
+  <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted||(deletion==='current'&&!stopAccepted)} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
+   {deletion==='current'&&<ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>}<div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}{typeof deletion==='object'&&deletion&&state?.browser.bound_ids.includes(deletion.id)&&<Checkbox label={t('同时永久删除关联浏览器资料')} checked={deleteBrowser} onCheckedChange={value=>setDeleteBrowser(value===true)}/>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>
   </AppDialog>
   <AppDialog open={!!rename} onOpenChange={open=>{if(!open&&!busy){setRename(null);setError('');}}} title={t('重命名身份')} footer={<><Button variant="secondary" onClick={()=>{setRename(null);setError('');}}>{t('取消')}</Button><Button variant="ink" disabled={busy||!renameValue.trim()} onClick={()=>void saveName()}>{t('保存')}</Button></>}><Input aria-label={t('身份名称')} maxLength={64} value={renameValue} onChange={e=>setRenameValue(e.target.value)}/>{error&&<p role="alert">{t(error)}</p>}</AppDialog>
  </section>;

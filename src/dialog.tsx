@@ -22,7 +22,7 @@ export function AppDialog({open,onOpenChange,title,description,children,footer,w
         onOpenAutoFocus={event=>{
           previousFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
           event.preventDefault();
-          const safe=alert?content.current?.querySelector<HTMLElement>('[data-dialog-cancel]'):null;
+          const safe=content.current?.querySelector<HTMLElement>('[data-dialog-cancel]');
           (safe||content.current)?.focus();
         }}
         onCloseAutoFocus={event=>{

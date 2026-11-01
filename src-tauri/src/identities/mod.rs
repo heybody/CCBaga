@@ -180,8 +180,12 @@ pub async fn identities_read(app: tauri::AppHandle) -> Result<State, String> {
 pub async fn identities_stop(
     app: tauri::AppHandle,
     webview: tauri::Webview,
+    confirmed: Option<bool>,
     on_progress: Option<tauri::ipc::JavaScriptChannelId>,
 ) -> Result<(), String> {
+    if confirmed != Some(true) {
+        return Err("未明确同意结束 Claude 进程；未执行操作。".into());
+    }
     // Channel 本身不实现 Deserialize；官方可反序列化 ID 在当前 WebView 上绑定后可兼容无通道旧调用。
     let on_progress = on_progress.map(|id| id.channel_on(webview));
     let cleaner = app.state::<crate::cleaner::Cleaner>();

@@ -14,7 +14,8 @@ async function commands(page:Page) {
 async function confirm(page:Page) {
  const dialog=page.getByRole('alertdialog',{name:'清理所选文件',exact:true});
  await dialog.getByRole('checkbox',{name:'我知道此操作无法撤销',exact:true}).check();
- await dialog.getByRole('button',{name:'确认清理',exact:true}).click();
+ await page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true}).check();
+ await dialog.getByRole('button',{name:'结束进程并清理',exact:true}).click();
 }
 export async function testClaudeResidue(browser:Browser,base:string) {
  const context=await browser.newContext();
@@ -46,7 +47,7 @@ export async function testClaudeResidue(browser:Browser,base:string) {
   await clean().click();
   let dialog=page.getByRole('alertdialog',{name:'清理所选文件',exact:true});await dialog.waitFor();
   assert.equal(await dialog.getByRole('button',{name:'取消',exact:true}).evaluate(node=>node===document.activeElement),true);
-  assert.equal(await dialog.getByRole('button',{name:'确认清理',exact:true}).isDisabled(),true);
+  assert.equal(await dialog.getByRole('button',{name:'结束进程并清理',exact:true}).isDisabled(),true);
   assert.deepEqual(await commands(page),[]);
   await page.mouse.click(3,3);assert.equal(await dialog.count(),1);
   await dialog.getByRole('button',{name:'取消',exact:true}).click();
@@ -112,7 +113,7 @@ export async function testClaudeResidue(browser:Browser,base:string) {
   await cache().check();await panel.getByRole('button',{name:'Clean selected',exact:true}).click();
   dialog=page.getByRole('alertdialog',{name:'Clean selected files',exact:true});await dialog.waitFor();
   assert.equal(await dialog.getByRole('button',{name:'Cancel',exact:true}).evaluate(node=>node===document.activeElement),true);
-  assert.equal(await dialog.getByRole('button',{name:'Confirm cleanup',exact:true}).isDisabled(),true);
+  assert.equal(await dialog.getByRole('button',{name:'End processes & clean',exact:true}).isDisabled(),true);
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();checks++;
   assert.deepEqual(errors,[]);
   return checks;

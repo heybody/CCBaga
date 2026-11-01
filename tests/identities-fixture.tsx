@@ -91,7 +91,7 @@ function execute(command:string,args:any){
   return {cleaned:selected.length,errors:[],completed:true} satisfies CleanResult;
  }
  if(command==='claude_cli_read')return {method:'',path:'',version:''};
- if(command==='identities_stop'){state.running=false;state.processes=[];return {running:false};}
+ if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.processes=[];return {running:false};}
  if(command==='identities_save'){
   const existing=state.records.find(row=>row.id===state.active);
   if(existing){existing.name=args.currentName;existing.saved_at=1780000010000+commands.length;existing.policy={...args.policy};}
