@@ -1,6 +1,6 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.7`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.8`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
@@ -83,10 +83,10 @@ python3 builds/ccbaga-maintenance/install-host.py
 
 没有设置定时监控、推送上游或公开发布。
 
-## 2026-11-01 Windows local.8 修复（待原生回归与构建）
+## 2026-11-01 Windows local.8 修复
 
 - 补入 `%LOCALAPPDATA%/Claude-Data/claude_pzs8sxrjxfjjc`，沿用原有登录/缓存/字段白名单，未扩大到整个资料目录。
 - 精确识别新路径下无 MSIX 包身份的内置 Code：三段数字版本/12 位十六进制构建编号/claude.exe，保留 SID、创建时间和进程句柄复核。
 - 定制版更新入口改成手动打开 fork 的 Releases；移除生产 updater 注册、配置与权限，避免上游原版覆盖身份专用补丁。
 - 增加新旧路径共存、空身份、往返、回滚、保留 Cowork/程序/Local State、重定向 AppData 与进程路径边界回归，侧栏测试遍历所有资料根目录。
-- win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；尚无 Rust 原生测试及安装包结果，未操作真实账号。
+- win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；[原生 CI](https://github.com/heybody/CCBaga/actions/runs/41295567076) 的 macOS 与 Windows 回归通过，Windows 安装包仍在构建。安装包代码提交为 `12b930b`；未操作真实账号。
