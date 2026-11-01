@@ -460,7 +460,8 @@ fn opening_and_switching_preserve_distinct_desktop_accounts_and_personal_setting
     let assert_retained = || {
         for (name, text) in retained {
             let bytes = fs::read(f.home.join(desktop).join(name)).unwrap();
-            if cfg!(target_os = "macos") && name == "config.json" {
+            // macOS 与 Windows 的 config.json 登录字段随身份切换，只核对保留的偏好。
+            if cfg!(any(target_os = "macos", target_os = "windows")) && name == "config.json" {
                 let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
                 assert_eq!(value["theme"], "dark");
             } else {
@@ -667,7 +668,12 @@ fn desktop_only_accounts_update_selected_slots_without_extra_cards() {
     let f = Fixture::new();
     let r = Reporter::channel(None);
     let p = Policy::default();
-    let cookie = "Library/Application Support/Claude/Cookies";
+    let cookie = &crate::cleaner::identity::desktop_roots(&f.home)[0]
+        .join("Cookies")
+        .strip_prefix(&f.home)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
     s.db.configure_browser(false, false, None).unwrap();
     f.write(cookie, b"desktop-A");
@@ -706,7 +712,12 @@ fn unknown_slot_does_not_absorb_new_code_account_or_overwrite_empty_workspace() 
     let f = Fixture::new();
     let r = Reporter::channel(None);
     let p = Policy::default();
-    let cookie = "Library/Application Support/Claude/Cookies";
+    let cookie = &crate::cleaner::identity::desktop_roots(&f.home)[0]
+        .join("Cookies")
+        .strip_prefix(&f.home)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
     f.write(cookie, b"desktop-A");
     s.switch("empty", "Desktop A", &p, &r).unwrap();
@@ -726,10 +737,10 @@ fn unknown_slot_does_not_absorb_new_code_account_or_overwrite_empty_workspace() 
 }
 
 #[test]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn desktop_oauth_fields_roundtrip_preserve_preferences_and_refresh() {
     let f = Fixture::new();
-    let path = "Library/Application Support/Claude/config.json";
+    let path = &desktop_file(&f, "config.json");
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
@@ -758,11 +769,11 @@ fn desktop_oauth_fields_roundtrip_preserve_preferences_and_refresh() {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn legacy_desktop_archive_restores_without_other_accounts_oauth_cache() {
     let f = Fixture::new();
-    let path = "Library/Application Support/Claude/config.json";
-    let cookies = "Library/Application Support/Claude/Cookies";
+    let path = &desktop_file(&f, "config.json");
+    let cookies = &desktop_file(&f, "Cookies");
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
@@ -780,11 +791,11 @@ fn legacy_desktop_archive_restores_without_other_accounts_oauth_cache() {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn desktop_config_allowlist_rejects_full_file_and_unknown_fields() {
     let f = Fixture::new();
     let mut source = crate::cleaner::identity::Source {
-        path: f.home.join("Library/Application Support/Claude/config.json"),
+        path: f.home.join(desktop_file(&f, "config.json")),
         category: "desktop".into(), keys: vec!["oauth:tokenCacheV2".into()],
     };
     assert!(crate::cleaner::identity::allowed(&f.home, &source));
@@ -795,10 +806,10 @@ fn desktop_config_allowlist_rejects_full_file_and_unknown_fields() {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn desktop_oauth_rollback_restores_outgoing_cache() {
     let f = Fixture::new();
-    let path = "Library/Application Support/Claude/config.json";
+    let path = &desktop_file(&f, "config.json");
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
@@ -975,4 +986,15 @@ fn carry_sessions_moves_unarchived_desktop_sidebar_cards_to_the_new_account() {
     let a = s.records().into_iter().find(|row| row.id != b).unwrap().id;
     s.switch(&a, "B", &p, &r).unwrap();
     assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+}
+
+/// Desktop 资料目录下的文件，按平台换算成相对 HOME 的路径（macOS 应用支持目录，Windows AppData/Roaming）。
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn desktop_file(f: &Fixture, name: &str) -> String {
+    crate::cleaner::identity::desktop_roots(&f.home)[0]
+        .join(name)
+        .strip_prefix(&f.home)
+        .unwrap()
+        .to_string_lossy()
+        .into_owned()
 }
