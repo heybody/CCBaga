@@ -73,6 +73,7 @@ function execute(command:string,args:any){
   if(transfer.failAfterImport){transfer.failAfterImport=false;throw Error('fixture state refresh failed after import');}
   return structuredClone(state);
  }
+ if(command==='identities_options'){state.options={carry_sessions:args.carrySessions,fast_archive:args.fastArchive};return structuredClone(state);}
  if(command==='identities_browser'){state.browser.enabled=args.enabled;if(args.enabled&&!state.browser.bound_ids.includes(state.active))state.browser.bound_ids.push(state.active);return structuredClone(state);}
  if(command==='browser_launch'){state.browser_warning=null;return {};}
  if(command==='identities_read'){identityReads++;return structuredClone(state);}

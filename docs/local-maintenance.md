@@ -1,6 +1,6 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.8`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.9`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
@@ -90,3 +90,11 @@ python3 builds/ccbaga-maintenance/install-host.py
 - 定制版更新入口改成手动打开 fork 的 Releases；移除生产 updater 注册、配置与权限，避免上游原版覆盖身份专用补丁。
 - 增加新旧路径共存、空身份、往返、回滚、保留 Cowork/程序/Local State、重定向 AppData 与进程路径边界回归，侧栏测试遍历所有资料根目录。
 - win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；[原生 CI](https://github.com/heybody/CCBaga/actions/runs/41295567076) 的 macOS（140 项）与 Windows（144 项，0 失败、2 忽略）回归及安装包构建通过。Windows 包 SHA-256 为 `3119213fa9d558833bc6c9050536aef9a0b48655af6090524e1a44786c9763dd`，版本资源为 `0.2.50+local.8`，未代码签名。安装包代码提交为 `12b930b`；未操作真实账号。
+
+## 2026-11-01 local.9 备份语义与身份界面
+
+- 按用户要求移除“联动浏览器”的设置入口；保留旧浏览器绑定元数据、兼容处理与关联资料，不清理用户数据。
+- “带入未归档会话”只控制身份切换；保存/更新备份始终包含当前会话历史，即使旧身份策略是留在工作区。备份仍打包、加密、验收，不挪走工作区数据；其他共享设置仍遵循原策略。
+- “快速切换（不压缩）”改为“快速模式”：切换直接移动可移动数据，备份使用快速压缩，保持加密与校验。确认框的会话范围与原生执行一致。
+- 新回归覆盖 carry/fast 四种组合下首次备份和更新，解密归档核对实际会话正文且工作区不变；UI 模拟验证按钮移除、双开关开启后的备份范围和 IPC 策略。
+- 不操作用户桌面、不安装或切换真实身份。

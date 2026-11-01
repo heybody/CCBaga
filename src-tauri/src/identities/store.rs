@@ -438,7 +438,9 @@ impl Store {
             return Err("请先恢复未完成的身份切换。".into());
         }
         self.stopped()?;
-        let (_, policy) = self.carry_policy(policy)?;
+        // 原地备份始终包含会话；带入开关只控制切换，不能让备份漏掉工作区历史。
+        let mut policy = policy.clone();
+        policy.history = false;
         let (mut record, stage) = self.save(name, &policy, reporter)?;
         if record.empty {
             return Err("当前未检测到可暂存的登录凭据或身份数据。".into());

@@ -1,5 +1,5 @@
 // [INPUT]: 共享虚构账号夹具、SQLite 故障触发器与认证归档，不访问真实 Claude 或钥匙串。
-// [OUTPUT]: 原地备份/迁移不改旧资料、摘要提交失败原子回滚、旧归档锁排除与固定 zstd 0.13.3 编码的三平台恢复证明。
+// [OUTPUT]: 原地备份始终包含会话且不移动工作区、迁移不改旧资料、摘要提交失败原子回滚、旧归档锁排除与固定 zstd 0.13.3 编码的三平台恢复证明。
 // [POS]: 身份备份/恢复边界的隔离安全测试；复用 optimization_tests 的临时目录。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{optimization_tests::Fixture, *};
@@ -8,6 +8,37 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+
+#[test]
+fn explicit_backups_include_sessions_with_all_fast_and_carry_options_without_moving_live_data() {
+    for carry in [false, true] {
+        for fast in [false, true] {
+            let f = Fixture::new();
+            f.login("A", "one", "a-token");
+            let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+            s.db.set_flag("carry_sessions", carry).unwrap();
+            s.db.set_flag("fast_archive", fast).unwrap();
+            // 即使旧身份策略要求会话留在工作区，显式备份也必须包含会话。
+            let policy = Policy { history: true, ..Policy::default() };
+            let reporter = Reporter::channel(None);
+            for content in [b"first session".as_slice(), b"updated session".as_slice()] {
+                f.write(".claude/history.jsonl", content);
+                s.save_current("A backup", &policy, &reporter).unwrap();
+                assert_eq!(s.records().len(), 1);
+                let record = s.records().remove(0);
+                assert!(!record.policy.history);
+                let stage = s.load(&record).unwrap();
+                assert!(stage.manifest.plain.is_empty());
+                let n = stage.manifest.sources.iter().position(|source|
+                    source.path == f.home.join(".claude/history.jsonl")
+                ).expect("explicit backup must contain current session history");
+                assert_eq!(fs::read(stage.data(n)).unwrap(), content);
+                assert_eq!(fs::read(f.home.join(".claude/history.jsonl")).unwrap(), content);
+                assert_eq!(f.token(), "a-token");
+            }
+        }
+    }
+}
 
 #[test]
 fn version_0248_zstd_013_fixture_decodes_and_restores_with_current_library() {

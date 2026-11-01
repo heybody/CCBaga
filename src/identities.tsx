@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 原生身份命令、保留策略、Motion 弹簧/浏览器媒体订阅、共享确认窗/进度、文件残留与 CLI 维护。
  * [OUTPUT]: 空/当前/暂存身份竖式立体工牌、原地备份与订阅/凭据徽章、顶部绿光、弹簧横滚/视差、有界进程提示与删除确认；卡片下统一显示身份/空身份/文件清理的真实阶段动画和结果。
- * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；可选浏览器绑定/旧资料采用确认与重开重试，关联浏览器资料删除单独选择。
+ * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；不提供浏览器联动设置入口，保留旧关联资料兼容；备份始终包含会话，切换保留策略独立。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
@@ -34,7 +34,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [residueBusy,setResidueBusy]=useState(false),[residueRevision,setResidueRevision]=useState(0);
  const [error,setError]=useState('');
  const [transfer,setTransfer]=useState<Identity|'import'|null>(null),[transferBusy,setTransferBusy]=useState(false);
- const [browserReview,setBrowserReview]=useState<boolean|null>(null),[useExisting,setUseExisting]=useState(false);
  const [review,setReview]=useState<Target|null>(initialEmpty?'empty':null);
  const [name,setName]=useState(t('当前身份'));
  const [rename,setRename]=useState<Identity|null>(null), [renameValue,setRenameValue]=useState('');
@@ -45,14 +44,15 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const reduceMotion=useIdentityReducedMotion();
  const scrollSpring=useSpring(0,{stiffness:170,damping:25,mass:.8});
  const scrollTarget=useRef(0);
- const locked=busy||cliBusy||residueBusy||transferBusy||transfer!==null||!!review||!!rename||!!deletion||browserReview!==null;
+ const locked=busy||cliBusy||residueBusy||transferBusy||transfer!==null||!!review||!!rename||!!deletion;
  const active=state?.records.find(row=>row.id===state.active);
  const current=state?.current;
  const saved=state?.records.filter(row=>!current?.present||row.id!==state.active)??[];
  const currentName=current?.display_name||current?.email?.split('@')[0]||active?.name||t('当前身份');
  const blocked=locked||loading||!state||!!state?.recovery;
- const kept=policyRows.filter(([key])=>policy[key]).map(([,label])=>t(label));
- const removed=policyRows.filter(([key])=>!policy[key]).map(([,label])=>t(label));
+ const effectivePolicy={...policy,history:review==='save'?false:review&&state?.options?.carry_sessions?true:policy.history};
+ const kept=policyRows.filter(([key])=>effectivePolicy[key]).map(([,label])=>t(label));
+ const removed=policyRows.filter(([key])=>!effectivePolicy[key]).map(([,label])=>t(label));
  useEffect(()=>{void read();},[]);
  useEffect(()=>{
   const deadlines=[state?.current,...Object.values(state?.summaries??{})].map(item=>item?.expires_at).filter((expiry):expiry is number=>typeof expiry==='number'&&Number.isSafeInteger(expiry)&&expiry>now);
@@ -106,12 +106,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   setResidueRevision(value=>value+1);
   try {setState(await invoke<IdentityState>('identities_read'));} catch {/* 保留操作错误，不掩盖恢复失败。 */}
  }
- async function configureBrowser() {
-  if(browserReview===null||busy)return;
-  const enabled=browserReview;setBusy(true);setError('');
-  try {setState(await invoke<IdentityState>('identities_browser',{enabled,useExisting}));setBrowserReview(null);}
-  catch(e){setError(String(e));await refreshAfterError();}finally{setBusy(false);}
- }
  async function retryBrowser() {
   if(busy)return;setBusy(true);setError('');
   try {await invoke('browser_launch',{onProgress:activity.start('browser')});activity.finish(true,'浏览器资料已与身份同步。');await read();}
@@ -133,7 +127,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   try {
    await stop();
    const next=target==='save'
-    ?await invoke<IdentityState>('identities_save',{currentName:name.trim(),policy,onProgress})
+    ?await invoke<IdentityState>('identities_save',{currentName:name.trim(),policy:{...policy,history:false},onProgress})
     :await invoke<IdentityState>('identities_switch', {targetId:typeof target==='object'?target.id:'empty', currentName:name.trim(), policy, recover:target==='recovery', onProgress});
    setState(next);
    setResidueRevision(value=>value+1);
@@ -162,12 +156,12 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   catch(e) {setError(String(e));} finally {setBusy(false);}
  }
  const carry=state?.options?.carry_sessions??false;
- const options=<div className="identity-policy-grid">{policyRows.map(([key,label])=><div className="identity-policy-row" key={key}><Checkbox label={t(label)} checked={key==='history'&&carry?true:policy[key]} disabled={locked||(key==='history'&&carry)} onCheckedChange={checked=>setPolicy(old=>({...old,[key]:checked}))}/></div>)}</div>;
+ const options=<div className="identity-policy-grid">{policyRows.map(([key,label])=><div className="identity-policy-row" key={key}><Checkbox label={t(label)} checked={key==='history'&&review!=='save'&&carry?true:effectivePolicy[key]} disabled={locked||(key==='history'&&(review==='save'||carry))} onCheckedChange={checked=>setPolicy(old=>({...old,[key]:checked}))}/></div>)}</div>;
  return <section className="identity-page">
   <header className="cleanup-title"><h1>{t('Claude 身份管理')}</h1><Button variant="secondary" size="small" disabled={locked||loading} leftIcon={<Refresh aria-hidden size={16} className={loading?'spin':''}/>} onClick={()=>void read()}>{t('刷新')}</Button></header>
   {error&&<p role="alert" className="cleanup-feedback error">{t(error)}</p>}
   {state?.recovery&&<div className="identity-recovery" role="alert"><strong>{t('有一次身份切换尚未完成')}</strong><Button size="small" variant="ink" disabled={locked||loading} onClick={()=>choose('recovery')}>{t('恢复原身份')}</Button></div>}
-    <section className="identity-library"><div className="identity-section-head"><h2>{t('身份')}</h2><div className="identity-library-controls"><span className="identity-count">{saved.length} {t('暂存身份')}</span><Button size="small" variant="secondary" disabled={blocked} onClick={()=>setTransfer('import')}>{t('导入')}</Button><span title={t('未归档的会话留在工作区，切换后在新账号里继续用（Desktop 侧栏也会显示）；目标账号原有的会话一并挪入，不覆盖。')}><Checkbox label={t('带入未归档会话')} checked={carry} disabled={blocked} onCheckedChange={value=>void setOptions({carry_sessions:value===true})}/></span><span title={t('缓存和会话直接挪到保险库目录，不压缩、不打包；登录信息仍加密保存。')}><Checkbox label={t('快速切换（不压缩）')} checked={state?.options?.fast_archive??false} disabled={blocked} onCheckedChange={value=>void setOptions({fast_archive:value===true})}/></span><Checkbox label={t('联动浏览器')} checked={state?.browser.enabled??false} disabled={blocked} onCheckedChange={value=>{setUseExisting(false);setBrowserReview(value===true);setError('');}}/></div></div>
+    <section className="identity-library"><div className="identity-section-head"><h2>{t('身份')}</h2><div className="identity-library-controls"><span className="identity-count">{saved.length} {t('暂存身份')}</span><Button size="small" variant="secondary" disabled={blocked} onClick={()=>setTransfer('import')}>{t('导入')}</Button><span title={t('仅影响切换：未归档会话留在工作区并带入新账号，目标账号原有会话一并挪入；保存或更新备份仍包含当前会话。')}><Checkbox label={t('带入未归档会话')} checked={carry} disabled={blocked} onCheckedChange={value=>void setOptions({carry_sessions:value===true})}/></span><span title={t('切换时直接移动缓存等数据；保存或更新备份时使用快速压缩，仍加密并校验。')}><Checkbox label={t('快速模式')} checked={state?.options?.fast_archive??false} disabled={blocked} onCheckedChange={value=>void setOptions({fast_archive:value===true})}/></span></div></div>
    <div className="identity-card-rail" ref={rail} tabIndex={0} role="region" aria-label={t('身份')}>
     <IdentityCard className={`identity-card empty${current?.present===false?' selected':''}`} label={current?.present===false?`${t('空身份')} · ${t('当前身份')}`:t('空身份')}>
      <div className="identity-card-head"><div className="identity-avatar" aria-hidden="true">∅</div></div>
@@ -212,9 +206,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   </AppDialog>
   <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
    <div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}{typeof deletion==='object'&&deletion&&state?.browser.bound_ids.includes(deletion.id)&&<Checkbox label={t('同时永久删除关联浏览器资料')} checked={deleteBrowser} onCheckedChange={value=>setDeleteBrowser(value===true)}/>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>
-  </AppDialog>
-  <AppDialog open={browserReview!==null} onOpenChange={open=>{if(!open&&!busy)setBrowserReview(null);}} title={t(browserReview?'联动浏览器':'关闭浏览器联动')} description={t('将正常关闭并重开浏览器，请先保存网页任务。')} footer={<><Button variant="secondary" disabled={busy} onClick={()=>setBrowserReview(null)}>{t('取消')}</Button><Button variant="ink" disabled={busy} loading={busy} onClick={()=>void configureBrowser()}>{t('确认')}</Button></>}>
-   <div className="identity-confirm"><p>{t(browserReview?'每个身份使用独立网页资料和稳定指纹，切换时自动恢复。首次仍需登录网站。':'恢复使用原有通用浏览器资料。各身份的独立资料会保留。')}</p>{browserReview&&<Checkbox label={t('将现有浏览器资料关联给当前身份')} checked={useExisting} disabled={busy} onCheckedChange={value=>setUseExisting(value===true)}/>}<p>{t('默认创建新资料，现有资料不会删除。资料隔离不会改变出口 IP。')}</p>{error&&<p role="alert">{t(error)}</p>}</div>
   </AppDialog>
   <AppDialog open={!!rename} onOpenChange={open=>{if(!open&&!busy){setRename(null);setError('');}}} title={t('重命名身份')} footer={<><Button variant="secondary" onClick={()=>{setRename(null);setError('');}}>{t('取消')}</Button><Button variant="ink" disabled={busy||!renameValue.trim()} onClick={()=>void saveName()}>{t('保存')}</Button></>}><Input aria-label={t('身份名称')} maxLength={64} value={renameValue} onChange={e=>setRenameValue(e.target.value)}/>{error&&<p role="alert">{t(error)}</p>}</AppDialog>
  </section>;
