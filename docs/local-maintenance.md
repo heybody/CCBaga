@@ -98,3 +98,5 @@ python3 builds/ccbaga-maintenance/install-host.py
 - “快速切换（不压缩）”改为“快速模式”：切换直接移动可移动数据，备份使用快速压缩，保持加密与校验。确认框的会话范围与原生执行一致。
 - 新回归覆盖 carry/fast 四种组合下首次备份和更新，解密归档核对实际会话正文且工作区不变；UI 模拟验证按钮移除、双开关开启后的备份范围和 IPC 策略。
 - 不操作用户桌面、不安装或切换真实身份。
+
+local.9 验证：代码 `ebec208` 的 [CI 41312737786](https://github.com/heybody/CCBaga/actions/runs/41312737786) 成功，前端 24 项、界面模拟 67 项、macOS Rust 141 项、Windows Rust 145 项通过（Rust 各 0 失败、2 忽略）。Windows 候选安装包版本 `0.2.50+local.9`，SHA-256 `1c0acdcf443bff1e74f198135dc6f345cc78754dd85e160784f6f8e3914f1092` 已核对；未另发 local.9 Release，未安装。
