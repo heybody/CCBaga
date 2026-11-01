@@ -1,3 +1,14 @@
+# 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
+
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.1`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+
+- 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
+- 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
+- 安装包不含浏览器 B 引擎（`local-build.json` 删除 `Browser.zip` 资源），约 57 MB；CI 只为 UI 模拟测试下载引擎。
+- 上一版 `codex/desktop-auth-identity-only`（v0.2.48）在 fork 上为 `cares/desktop-auth-identity-only`，Release `v0.2.48+local.3` 可作回退。
+
+以下为上一版接手记录：
+
 # 2026-10-22 Desktop登录增强与身份专用界面
 
 当前分支：`codex/desktop-auth-identity-only`，基于已安装的v0.2.48维护分支；版本 `0.2.48+local.2`。本次没有移植v0.2.49新功能。

@@ -56,6 +56,6 @@ Windows x64：平台桥使用当前用户 SID、文件所有权、reparse-point 
 
 伴生页身份卡：检测区上方的紧凑黑色工牌显示本地绑定身份名称/邮箱/组织与联动状态；回环 context 仅传递有界显示字段，不传令牌、账号 UUID、HMAC 或原始文件。浏览器仍绑定 A 而本地登录变成 B 时保留 A 名称并标为待同步，不冒充网页登录身份；读取未知/主程序断连均不显示已联动。
 
-本地维护：分支`cares/desktop-auth-identity-only`（GitHub `heybody/CCBaga`，由`.github/workflows/cares-build.yml`编译，构建配置`packaging/cares/local-build.json`）；接手先读`docs/local-maintenance.md`，其中明确候选包与实际安装版本、验证边界和B后续清理待办。
+本地维护：分支`cares/identity-only-0.2.50`（基线 v0.2.50，GitHub `heybody/CCBaga`，由`.github/workflows/cares-build.yml`编译，构建配置`packaging/cares/local-build.json`）；接手先读`docs/local-maintenance.md`，其中明确候选包与实际安装版本、验证边界和B后续清理待办。
 
 本地未知账号普通保存沿用选中槽位；空工作区、新账号与恢复检查点仍独立；工作区槽位不冒充真实账号验证。
