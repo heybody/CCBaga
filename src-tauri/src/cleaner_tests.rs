@@ -569,20 +569,26 @@ fn linux_cleanup_uses_xdg_cache_paths_and_preserves_desktop_configuration() {
 #[test]
 fn windows_desktop_storage_preserves_mcp_plugins_and_programs() {
     let f = Fixture::new();
-    for desktop in ["AppData/Roaming/Claude", "AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude"] {
+    for desktop in ["AppData/Roaming/Claude", "AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude", "AppData/Local/Claude-Data/claude_pzs8sxrjxfjjc"] {
         f.file(&format!("{desktop}/Cache/data"), "cache");
         f.file(&format!("{desktop}/Local Storage/token"), "local login state");
         f.file(&format!("{desktop}/claude_desktop_config.json"), "personal MCP");
         f.file(&format!("{desktop}/plugins/personal"), "personal plugin");
+        f.file(&format!("{desktop}/Local State"), "shared encryption key fixture");
+        f.file(&format!("{desktop}/local-agent-mode-sessions/task"), "cowork task");
+        f.file(&format!("{desktop}/claude-code/2.1.309/9078b9c1d466/claude.exe"), "installed CLI");
     }
     f.file("AppData/Local/AnthropicClaude/Claude.exe", "installed program");
     let plan = collect(&f.0, None).unwrap();
     perform_items(&f.0, &plan.items, &Cleaner::default(), || Ok(false), &Reporter::channel(None)).unwrap();
-    for desktop in ["AppData/Roaming/Claude", "AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude"] {
+    for desktop in ["AppData/Roaming/Claude", "AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude", "AppData/Local/Claude-Data/claude_pzs8sxrjxfjjc"] {
         assert!(!f.0.join(desktop).join("Cache").exists());
         assert!(!f.0.join(desktop).join("Local Storage").exists());
         assert!(f.0.join(desktop).join("claude_desktop_config.json").exists());
         assert!(f.0.join(desktop).join("plugins/personal").exists());
+        assert!(f.0.join(desktop).join("Local State").exists());
+        assert!(f.0.join(desktop).join("local-agent-mode-sessions/task").exists());
+        assert!(f.0.join(desktop).join("claude-code/2.1.309/9078b9c1d466/claude.exe").exists());
     }
     assert!(f.0.join("AppData/Local/AnthropicClaude/Claude.exe").exists());
 }
@@ -635,6 +641,8 @@ fn windows_redirected_appdata_remains_whitelisted() {
         outside.file("roaming/Claude/Cookies", "disposable cookie fixture");
         outside.file("roaming/Claude/local_sessions/record.json", r#"{"org":"org-fixture-123"}"#);
         outside.file("local/claude-cli-nodejs/cache", "disposable cache fixture");
+        outside.file("local/Claude-Data/claude_pzs8sxrjxfjjc/config.json", r#"{"oauth:tokenCacheV2":"fixture"}"#);
+        outside.file("local/Claude-Data/claude_pzs8sxrjxfjjc/Network/Cookies", "new layout cookie fixture");
         outside.file("unrelated/data", "keep");
         let status = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "cleaner::tests::windows_redirected_appdata_remains_whitelisted", "--nocapture"])
@@ -660,5 +668,7 @@ fn windows_redirected_appdata_remains_whitelisted() {
     assert_eq!(files, vec![outside.join("roaming/Claude/local_sessions/record.json")]);
     let sources = super::identity::sources(&root, &crate::identities::Policy::default()).unwrap();
     assert!(sources.iter().any(|source| source.path == Path::new(&cookie.path)));
+    assert!(sources.iter().any(|source| source.path == outside.join("local/Claude-Data/claude_pzs8sxrjxfjjc/config.json")));
+    assert!(sources.iter().any(|source| source.path == outside.join("local/Claude-Data/claude_pzs8sxrjxfjjc/Network/Cookies")));
     assert!(sources.iter().all(|source| super::identity::allowed(&root, source)));
 }

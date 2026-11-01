@@ -89,13 +89,23 @@ fn published_archive_matches_embedded_key_and_signed_version() {
     let manifest: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let bytes =
         std::fs::read(std::env::var("CC_UPDATE_ARCHIVE").expect("CC_UPDATE_ARCHIVE")).unwrap();
-    let config: Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
-    let key = config["plugins"]["updater"]["pubkey"].as_str().unwrap();
-    verify(manifest.clone(), key, &bytes).unwrap();
+    // 身份专用版没有生产更新器配置；显式验签时由调用者提供公开密钥。
+    let key = std::env::var("CC_UPDATE_PUBLIC_KEY").expect("CC_UPDATE_PUBLIC_KEY");
+    verify(manifest.clone(), &key, &bytes).unwrap();
     let mut forged = manifest.clone();
     forged["version"] = json!("9999.0.0");
-    assert!(verify(forged, key, &bytes).is_err());
+    assert!(verify(forged, &key, &bytes).is_err());
     let mut tampered = bytes;
     tampered[0] ^= 1;
-    assert!(verify(manifest, key, &tampered).is_err());
+    assert!(verify(manifest, &key, &tampered).is_err());
+}
+
+#[test]
+fn identity_only_build_has_no_upstream_updater_endpoint_or_permission() {
+    for raw in [include_str!("../tauri.conf.json"), include_str!("../tauri.windows.conf.json")] {
+        let config: Value = serde_json::from_str(raw).unwrap();
+        assert!(config["plugins"]["updater"].is_null());
+    }
+    let capability: Value = serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
+    assert!(!capability["permissions"].as_array().unwrap().iter().any(|p| p.as_str().is_some_and(|v| v.starts_with("updater:"))));
 }

@@ -48,12 +48,5 @@
         "silent": true
       }
     }
-  },
-  "plugins": {
-    "updater": {
-      "windows": {
-        "installMode": "passive"
-      }
-    }
   }
 }

@@ -33,3 +33,5 @@ network_links.rs: 固定四域名并发只读 HTTP 探针；下载元数据仅�
 本地维护：v0.2.50基线，根目录备份许可用上游实现，本地保留Desktop未知邮箱提示与带入未归档会话/快速切换（挪动缓存与会话）开关；详情见本地维护文档。
 
 本地身份专用版撤销系统设置、网络诊断与浏览器环境设置命令注册；保留身份关联兼容接口及数据结构，不启动macOS浏览器伴随注册。cleaner_identity.rs新增macOS Desktop身份配置字段。
+
+Windows local.8：desktop_roots 纳入 Claude-Data/claude_pzs8sxrjxfjjc，内置 CLI 无包身份时按精确版本/构建目录识别；保留原 SID/句柄保护。生产不注册 updater，local_release_open 仅打开 heybody/CCBaga 的固定发布页。

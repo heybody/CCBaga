@@ -1,5 +1,5 @@
 // [INPUT]: Win32 Toolhelp/进程句柄、当前用户 SID、精确 CLI 入口与独立浏览器资料路径。
-// [OUTPUT]: 官方 CLI/Desktop 精确进程与句柄复核后的结束；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
+// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI）精确进程与句柄复核后的结束；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
 // [POS]: Windows 进程边界；参数仅用于原生判定，不返回 UI；不对其他用户或名称相似的程序执行终止。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{current_sid, input, process_sid, response};
@@ -241,6 +241,21 @@ fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
         return Some("Claude Code");
     }
     let local = normalized(&std::env::var("LOCALAPPDATA").ok()?);
+    // 新商店版把内置 CLI 放在包目录外，进程没有 MSIX 包身份；仅接受实测官方布局。
+    if let Some(relative) = path.strip_prefix(&format!(
+        "{local}\\claude-data\\claude_pzs8sxrjxfjjc\\claude-code\\"
+    )) {
+        let parts: Vec<_> = relative.split('\\').collect();
+        if parts.len() == 3
+            && version_name(parts[0])
+            && !parts[0].ends_with(".exe")
+            && parts[1].len() == 12
+            && parts[1].bytes().all(|b| b.is_ascii_hexdigit())
+            && parts[2] == "claude.exe"
+        {
+            return Some("Claude Code");
+        }
+    }
     if path.starts_with(&format!("{local}\\anthropicclaude\\"))
         || path.starts_with(&format!("{local}\\programs\\claude\\"))
     {
@@ -611,6 +626,26 @@ impl ChildJob {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_embedded_cli_without_package_identity_is_recognized_exactly() {
+        let local = std::env::var("LOCALAPPDATA").unwrap();
+        let base = format!(r"{local}\Claude-Data\claude_pzs8sxrjxfjjc\claude-code");
+        let official = format!(r"{base}\2.1.309\9078b9c1d466\claude.exe");
+        assert_eq!(claude_kind(&official, &[]), Some("Claude Code"));
+        assert_eq!(claude_kind(&official.to_uppercase().replace('\\', "/"), &[]), Some("Claude Code"));
+        for path in [
+            format!(r"{base}\2.1.309\9078b9c1d466\other.exe"),
+            format!(r"{base}\2.1.309\9078b9c1d466\extra\claude.exe"),
+            format!(r"{base}\2.1.309\not-a-build\claude.exe"),
+            format!(r"{base}\latest\9078b9c1d466\claude.exe"),
+            format!(r"{base}\2.1.309.exe\9078b9c1d466\claude.exe"),
+            format!(r"{base}\..\9078b9c1d466\claude.exe"),
+            official.replace("claude_pzs8sxrjxfjjc", "unrelated_pzs8sxrjxfjjc"),
+            official.replace("Claude-Data", "Claude-DataOther"),
+        ] {
+            assert_eq!(claude_kind(&path, &[]), None, "{path}");
+        }
+    }
     #[test]
     fn exact_arguments_reject_substrings_and_unrelated_scripts() {
         assert!(official_cli(&[

@@ -1,5 +1,5 @@
 // [INPUT]: 当前用户目录、Windows 实际 AppData、Claude 清理白名单与可选组织编号。
-// [OUTPUT]: 分类清理目标、五个固定锁的瞬态判定与非空/未知路径保留警告、完整目录元数据统计和受限旧组织文件匹配。
+// [OUTPUT]: 新旧 Windows Desktop 资料根目录、分类清理目标、五个固定锁的瞬态判定与保留警告、完整目录元数据统计和受限旧组织文件匹配。
 // [POS]: 清理发现边界；不跟随链接，不遍历项目仓库，不读取凭据内容。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -132,6 +132,7 @@ pub(super) fn desktop_roots(root: &Path) -> Vec<PathBuf> {
             localappdata.join("Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude-3p"),
             localappdata.join("Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/Claude"),
             localappdata.join("Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/Claude-3p"),
+            localappdata.join("Claude-Data/claude_pzs8sxrjxfjjc"),
         ]
     }
     #[cfg(not(target_os = "windows"))]

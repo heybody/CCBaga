@@ -82,3 +82,11 @@ python3 builds/ccbaga-maintenance/install-host.py
 4. 下次上游升级先fetch比较，保留旧分支与可用安装包；在新基线上按行为移植必要部分，不机械应用旧全量patch。
 
 没有设置定时监控、推送上游或公开发布。
+
+## 2026-11-01 Windows local.8 修复（待原生回归与构建）
+
+- 补入 `%LOCALAPPDATA%/Claude-Data/claude_pzs8sxrjxfjjc`，沿用原有登录/缓存/字段白名单，未扩大到整个资料目录。
+- 精确识别新路径下无 MSIX 包身份的内置 Code：三段数字版本/12 位十六进制构建编号/claude.exe，保留 SID、创建时间和进程句柄复核。
+- 定制版更新入口改成手动打开 fork 的 Releases；移除生产 updater 注册、配置与权限，避免上游原版覆盖身份专用补丁。
+- 增加新旧路径共存、空身份、往返、回滚、保留 Cowork/程序/Local State、重定向 AppData 与进程路径边界回归，侧栏测试遍历所有资料根目录。
+- win-desktop 本地 24 项前端测试、TypeScript/Vite 构建通过；尚无 Rust 原生测试及安装包结果，未操作真实账号。

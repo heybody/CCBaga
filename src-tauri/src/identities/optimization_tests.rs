@@ -1,5 +1,5 @@
 // [INPUT]: 虚构 UUID/组织/凭据、隔离文件系统和归档格式。
-// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、macOS/Windows 不同 Desktop 账号与 Linux 排除 macOS 路径、个人设置和共享代理保留回归。
+// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、macOS/Windows 不同 Desktop 账号与 Linux 排除 macOS 路径、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
 // [POS]: 账号匹配与不可变归档代次的离线证明，不读取真实用户数据。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -948,44 +948,47 @@ fn fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mi
 }
 #[test]
 fn carry_sessions_moves_unarchived_desktop_sidebar_cards_to_the_new_account() {
-    let f = Fixture::new();
-    let r = Reporter::channel(None);
-    let p = Policy::default();
-    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    let desktop = crate::cleaner::identity::desktop_roots(&f.home)[0].clone();
-    let cards = desktop.strip_prefix(&f.home).unwrap().join("claude-code-sessions");
-    let card = |account: &str, org: &str, name: &str| {
-        cards.join(account).join(org).join(name).to_string_lossy().into_owned()
-    };
-    // B 先登录并暂存，之后在 A 上工作。
-    f.login("bbbbbbbb-0000", "org-bbbb-0000", "b-token");
-    s.switch("empty", "B", &p, &r).unwrap();
-    let b = s.records()[0].id.clone();
-    f.login("aaaaaaaa-0000", "org-aaaa-0000", "a-token");
-    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json"), br#"{"isArchived":false,"title":"open"}"#);
-    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json"), br#"{"isArchived":true}"#);
-    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json"), br#"{"isArchived":false,"from":"a"}"#);
-    f.write(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"), br#"{"isArchived":false,"from":"b"}"#);
-    f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json"), b"{}");
-    s.db.set_flag("carry_sessions", true).unwrap();
-    s.switch(&b, "A", &p, &r).unwrap();
-    assert_eq!(f.token(), "b-token");
-    let exists = |path: &str| f.home.join(path).exists();
-    assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
-    assert!(!exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json")));
-    // 已归档、非卡片文件留在原账号；同名不覆盖。
-    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json")));
-    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json")));
-    assert_eq!(
-        fs::read(f.home.join(card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"))).unwrap(),
-        br#"{"isArchived":false,"from":"b"}"#
-    );
-    assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json")));
-    // 关闭开关后不再挪动。
-    s.db.set_flag("carry_sessions", false).unwrap();
-    let a = s.records().into_iter().find(|row| row.id != b).unwrap().id;
-    s.switch(&a, "B", &p, &r).unwrap();
-    assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+    let root_count = crate::cleaner::identity::desktop_roots(&Fixture::new().home).len();
+    for root_index in 0..root_count {
+        let f = Fixture::new();
+        let r = Reporter::channel(None);
+        let p = Policy::default();
+        let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+        let desktop = crate::cleaner::identity::desktop_roots(&f.home)[root_index].clone();
+        let cards = desktop.strip_prefix(&f.home).unwrap().join("claude-code-sessions");
+        let card = |account: &str, org: &str, name: &str| {
+            cards.join(account).join(org).join(name).to_string_lossy().into_owned()
+        };
+        // B 先登录并暂存，之后在 A 上工作。
+        f.login("bbbbbbbb-0000", "org-bbbb-0000", "b-token");
+        s.switch("empty", "B", &p, &r).unwrap();
+        let b = s.records()[0].id.clone();
+        f.login("aaaaaaaa-0000", "org-aaaa-0000", "a-token");
+        f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json"), br#"{"isArchived":false,"title":"open"}"#);
+        f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json"), br#"{"isArchived":true}"#);
+        f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json"), br#"{"isArchived":false,"from":"a"}"#);
+        f.write(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"), br#"{"isArchived":false,"from":"b"}"#);
+        f.write(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json"), b"{}");
+        s.db.set_flag("carry_sessions", true).unwrap();
+        s.switch(&b, "A", &p, &r).unwrap();
+        assert_eq!(f.token(), "b-token");
+        let exists = |path: &str| f.home.join(path).exists();
+        assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+        assert!(!exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_open.json")));
+        // 已归档、非卡片文件留在原账号；同名不覆盖。
+        assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_done.json")));
+        assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "scheduled-tasks.json")));
+        assert_eq!(
+            fs::read(f.home.join(card("bbbbbbbb-0000", "org-bbbb-0000", "local_both.json"))).unwrap(),
+            br#"{"isArchived":false,"from":"b"}"#
+        );
+        assert!(exists(&card("aaaaaaaa-0000", "org-aaaa-0000", "local_both.json")));
+        // 关闭开关后不再挪动。
+        s.db.set_flag("carry_sessions", false).unwrap();
+        let a = s.records().into_iter().find(|row| row.id != b).unwrap().id;
+        s.switch(&a, "B", &p, &r).unwrap();
+        assert!(exists(&card("bbbbbbbb-0000", "org-bbbb-0000", "local_open.json")));
+    }
 }
 
 /// Desktop 资料目录下的文件，按平台换算成相对 HOME 的路径（macOS 应用支持目录，Windows AppData/Roaming）。
@@ -997,4 +1000,60 @@ fn desktop_file(f: &Fixture, name: &str) -> String {
         .unwrap()
         .to_string_lossy()
         .into_owned()
+}
+
+#[cfg(windows)]
+#[test]
+fn new_windows_desktop_layout_switches_login_and_rolls_back_without_touching_cowork() {
+    let f = Fixture::new();
+    let root = "AppData/Local/Claude-Data/claude_pzs8sxrjxfjjc";
+    let config = format!("{root}/config.json");
+    let cookies = format!("{root}/Network/Cookies");
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    let read = || -> serde_json::Value {
+        serde_json::from_slice(&fs::read(f.home.join(&config)).unwrap()).unwrap()
+    };
+    let preserved = [
+        "Local State", "claude_desktop_config.json", "local-agent-mode-sessions/task",
+        "claude-code/2.1.309/9078b9c1d466/claude.exe",
+    ];
+    for name in preserved { f.write(&format!("{root}/{name}"), b"keep"); }
+    // 新旧目录共存时都归档登录，不扩大为整个 Claude-Data 目录。
+    f.write("AppData/Roaming/Claude/Cookies", b"old-layout-cookie");
+    f.write(&config, br#"{"oauth:tokenCacheV2":"a","lastKnownAccountUuid":"A","theme":"dark"}"#);
+    f.write(&cookies, b"a-cookie");
+    let sources = crate::cleaner::identity::sources(&f.home, &p).unwrap();
+    assert!(sources.iter().any(|source| source.path == f.home.join(&config)));
+    assert!(sources.iter().all(|source| crate::cleaner::identity::allowed(&f.home, source)));
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    assert!(read().get("oauth:tokenCacheV2").is_none());
+    assert!(!f.home.join(&cookies).exists());
+    assert!(!f.home.join("AppData/Roaming/Claude/Cookies").exists());
+    let mut source = crate::cleaner::identity::Source {
+        path: f.home.join(&config), category: "desktop".into(), keys: vec![],
+    };
+    assert!(!crate::cleaner::identity::allowed(&f.home, &source));
+    source.path = f.home.join(root);
+    assert!(!crate::cleaner::identity::allowed(&f.home, &source));
+    f.write(&config, br#"{"oauth:tokenCacheV2":"b","lastKnownAccountUuid":"B","theme":"light"}"#);
+    f.write(&cookies, b"b-cookie");
+    s.fail_after_clear = true;
+    assert!(s.switch(&a, "B", &p, &r).is_err());
+    assert_eq!(read()["oauth:tokenCacheV2"], "b");
+    assert_eq!(fs::read(f.home.join(&cookies)).unwrap(), b"b-cookie");
+    assert!(s.db.get("recovery").unwrap().is_none());
+    s.fail_after_clear = false;
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert_eq!(read()["oauth:tokenCacheV2"], "a");
+    assert_eq!(read()["theme"], "light");
+    assert_eq!(fs::read(f.home.join(&cookies)).unwrap(), b"a-cookie");
+    assert_eq!(fs::read(f.home.join("AppData/Roaming/Claude/Cookies")).unwrap(), b"old-layout-cookie");
+    let b = s.records().into_iter().find(|row| row.id != a).unwrap().id;
+    s.switch(&b, "A", &p, &r).unwrap();
+    assert_eq!(read()["oauth:tokenCacheV2"], "b");
+    assert_eq!(fs::read(f.home.join(&cookies)).unwrap(), b"b-cookie");
+    for name in preserved { assert_eq!(fs::read(f.home.join(root).join(name)).unwrap(), b"keep"); }
 }

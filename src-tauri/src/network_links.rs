@@ -20,6 +20,9 @@ pub struct DomainCheckResult {
 }
 
 fn provider_url(provider: &str) -> Result<String, String> {
+    if provider == "local-release" {
+        return Ok("https://github.com/heybody/CCBaga/releases".into());
+    }
     if provider == "skill" {
         return Ok(
             "https://github.com/liseami/CCBaga/tree/main/skills/ccbaga-network#installation".into(),
@@ -275,6 +278,7 @@ mod tests {
 
     #[test]
     fn fixed_resources_preserve_original_destinations() {
+        assert_eq!(provider_url("local-release").unwrap(), "https://github.com/heybody/CCBaga/releases");
         assert_eq!(
             provider_url("dmit").unwrap(),
             "https://www.dmit.io/aff.php?aff=28800"

@@ -41,14 +41,5 @@
       "../assets/ai-icons/LICENSE.lobehub.txt": "licenses/LICENSE.lobehub.txt",
       "../vendor/glib/LICENSE": "licenses/LICENSE.glib.txt"
     }
-  },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/liseami/CCBaga/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJEQjVDMDk0RkU1ODBCQzUKUldURkMxaitsTUMxTFlYajNuTFBvK3EzeG5ubGpFK1VyZmZ6QnVJYnhERi9ta05sV0pRc2E3TXIK",
-      "requireSignedVersion": true
-    }
   }
 }
