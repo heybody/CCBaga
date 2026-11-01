@@ -1005,8 +1005,10 @@
 
 "检测结果无效，请重试。": "Invalid check results. Try again."
 
-"会话带入新账号": "Carry sessions to new account"
+"带入未归档会话": "Carry unarchived sessions"
+"未归档的会话留在工作区，切换后在新账号里继续用；目标账号原有的会话一并挪入，不覆盖。": "Unarchived sessions stay in the workspace and remain usable after switching; the target account's earlier sessions are moved in without overwriting."
 "快速切换（不压缩）": "Fast switch (no compression)"
+"缓存和会话直接挪到保险库目录，不压缩、不打包；登录信息仍加密保存。": "Caches and sessions are moved into the vault folder without compression or packing; login data stays encrypted."
 "联动浏览器": "Link browser"
 "关闭浏览器联动": "Unlink browser"
 "独立浏览器": "Separate browser"

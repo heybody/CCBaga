@@ -172,7 +172,7 @@ impl Store {
                 if identity::transient_lock(
                     &stage.manifest.home,
                     &s.path,
-                    &stage.path.join(format!("data/{n}")),
+                    &stage.data(n),
                 ) {
                     return None;
                 }
@@ -290,7 +290,7 @@ impl Store {
             if source.path.exists() {
                 private::safe(&source.path)?;
             }
-            let data = stage.path.join(format!("data/{n}"));
+            let data = stage.data(*n);
             if !source.keys.is_empty() {
                 let bytes = fs::read(data).map_err(problem)?;
                 let saved = if stage.manifest.sources[*n].keys.is_empty() {
@@ -300,10 +300,15 @@ impl Store {
                 };
                 identity::apply_config(source, &saved)?;
             } else {
-                if source.path.exists() {
+                if stage.is_plain(*n) && !data.exists() {
+                    // 挪动存放的数据已在工作区（回滚或恢复重入），或保存时就已不存在（缓存可再生），跳过。
+                } else if source.path.exists() {
                     return Err("身份恢复位置已有数据；请使用恢复操作。".into());
-                }
-                if data.is_dir() {
+                } else if super::archive::movable(source) && fs::rename(&data, &source.path).is_ok() {
+                    // 缓存与会话同盘直接挪回（旧归档的临时解包目录也一样，挪走不影响归档）；
+                    // 账号/配置类仍复制，摘要还要从解包目录读取。
+                    private::sync_parent(&source.path);
+                } else if data.is_dir() {
                     walk(&data, &data, &mut |path, relative, directory| {
                         self.during_io()?;
                         let target = source.path.join(relative);
@@ -416,6 +421,8 @@ impl Store {
             fs::remove_file(&trash)
                 .map_err(|_| "身份已从目录移除，但暂存文件回收失败；请重新打开面板。")?;
             private::sync_parent(&trash);
+            // 快速切换的挪动存放目录随之回收。
+            let _ = self.collect_generations();
         }
         reporter.log("verify", "ok", "所选本地身份已直接删除。", 1, Some(1));
         Ok(())
@@ -450,6 +457,28 @@ impl Store {
         );
         Ok(())
     }
+    /// 快速切换：把挪动存放的数据整目录挪进该代次的 .plain 目录（替代删除）。
+    /// 可重入：工作区已没有或 .plain 里已有时跳过，回滚与崩溃恢复都靠它把数据挪回原主人。
+    pub(super) fn park(&self, stage: &Stage, sources: &[(usize, Source)]) -> Result<(), String> {
+        for (n, source) in sources {
+            if !stage.is_plain(*n) {
+                continue;
+            }
+            self.stopped()?;
+            if !identity::allowed(&self.home, source) {
+                return Err("身份路径超出允许范围。".into());
+            }
+            let data = stage.data(*n);
+            if fs::symlink_metadata(&source.path).is_err() || data.exists() {
+                continue;
+            }
+            private::safe(&source.path)?;
+            private::directory(data.parent().unwrap())?;
+            fs::rename(&source.path, &data).map_err(problem)?;
+            private::sync_parent(&data);
+        }
+        Ok(())
+    }
     /// 会话带入开关打开时，会话历史一律留在工作区，不随身份归档。
     fn carry_policy(&self, policy: &Policy) -> Result<(bool, Policy), String> {
         let carry = self.db.flag("carry_sessions")?;
@@ -475,15 +504,18 @@ impl Store {
             if !identity::allowed(&self.home, source) {
                 return Err("身份路径超出允许范围。".into());
             }
-            let data = stage.path.join(format!("data/{n}"));
+            let data = stage.data(*n);
             private::parents(source.path.parent().unwrap())?;
+            if !source.path.exists() && data.exists() {
+                // 工作区还没有这类会话：整体挪入。
+                fs::rename(&data, &source.path).map_err(problem)?;
+                private::sync_parent(&source.path);
+                continue;
+            }
             let merge_file = |from: &Path, to: &Path| -> Result<(), String> {
                 if !to.exists() {
                     private::directory(to.parent().unwrap())?;
-                    let mut dest = private::create(to)?;
-                    io::copy(&mut fs::File::open(from).map_err(problem)?, &mut dest)
-                        .map_err(problem)?;
-                    return dest.sync_all().map_err(problem);
+                    return fs::rename(from, to).map_err(problem);
                 }
                 private::safe(to)?;
                 if to.extension().is_some_and(|x| x == "jsonl") {
@@ -496,7 +528,9 @@ impl Store {
                         dest.write_all(b"\n").map_err(problem)?;
                     }
                     dest.write_all(&old).map_err(problem)?;
-                    return dest.sync_all().map_err(problem);
+                    dest.sync_all().map_err(problem)?;
+                    // 已并入的旧内容从存放处移除，避免下次再追加一遍。
+                    return fs::remove_file(from).map_err(problem);
                 }
                 Ok(())
             };
@@ -566,7 +600,8 @@ impl Store {
             );
             Some(stage)
         };
-        let (record, outgoing) = self.save(name, policy, reporter)?;
+        let fast = self.db.flag("fast_archive")?;
+        let (record, outgoing) = self.save_switch(name, policy, reporter, fast)?;
         if target == record.id {
             // 选中当前未知身份自身时保存最新归档，不回灌加载的旧快照。
             reporter.log("commit", "running", "正在保存当前身份选择。", 0, Some(1));
@@ -602,7 +637,8 @@ impl Store {
                 .zip(&outgoing.manifest.fingerprints)
                 .enumerate()
             {
-                if identity::fingerprint(&source.path)? != *stamp {
+                // 挪动存放的数据不打包，整目录挪走不会丢内容，不再复核。
+                if !outgoing.is_plain(index) && identity::fingerprint(&source.path)? != *stamp {
                     return Err("身份数据发生变化；未切换身份。".into());
                 }
                 reporter.log(
@@ -621,6 +657,7 @@ impl Store {
                 Some(outgoing.manifest.sources.len()),
             );
             mutated = true;
+            self.park(&outgoing, &current)?;
             self.clear(&current, reporter, "clear")?;
             #[cfg(test)]
             if self.fail_after_clear {
@@ -680,6 +717,10 @@ impl Store {
             reporter.log("rollback", "running", "切换失败，正在恢复原身份。", 0, None);
             if self.stopped().is_ok() {
                 let rollback = (|| {
+                    if let Some(stage) = incoming.as_ref() {
+                        self.park(stage, &next)?;
+                    }
+                    self.park(&outgoing, &current)?;
                     self.clear(&current, reporter, "rollback")?;
                     self.clear(&next, reporter, "rollback")?;
                     let live = self.snapshot_keys()?;
@@ -762,6 +803,11 @@ impl Store {
         };
         self.stopped()?;
         reporter.log("switch", "running", "正在恢复未完成的身份切换。", 0, None);
+        // 先把挪动存放的数据挪回各自代次（目标先、原身份后），检查点只保存剩下的现状。
+        if let Some(stage) = incoming.as_ref() {
+            self.park(stage, &Self::selected(stage, &outgoing.manifest.policy))?;
+        }
+        self.park(&outgoing, &Self::selected(&outgoing, &outgoing.manifest.policy))?;
         // 恢复前再保存现状，避免崩溃后用户新产生的数据被恢复操作覆盖。
         let (checkpoint, current_stage) =
             self.save_checkpoint(name, &outgoing.manifest.policy, reporter)?;

@@ -144,6 +144,13 @@ impl Store {
             {
                 private::safe(&entry.path())?;
                 fs::remove_file(entry.path()).map_err(|_| "旧身份归档回收失败。")?;
+            } else if let Some(generation) = name.strip_suffix(".plain") {
+                // 快速切换的挪动存放目录随所属代次一起回收。
+                let archive = format!("{generation}.baga");
+                if archive_name(&archive) && !records.iter().any(|r| r.archive == archive) {
+                    private::safe(&entry.path())?;
+                    fs::remove_dir_all(entry.path()).map_err(|_| "旧身份归档回收失败。")?;
+                }
             }
         }
         private::sync_parent(&self.vault.join("identities.sqlite"));

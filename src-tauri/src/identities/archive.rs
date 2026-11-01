@@ -31,10 +31,31 @@ pub(super) struct Manifest {
     pub(super) fingerprints: Vec<Vec<u8>>,
     #[serde(default)]
     pub(super) account_key: Option<String>,
+    /// 快速切换：这些编号的数据不进归档，整目录挪到同代次的 `<代次>.plain/data/{n}`；为空时与旧格式完全相同。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) plain: Vec<usize>,
 }
 pub(super) struct Stage {
     pub(super) path: PathBuf,
     pub(super) manifest: Manifest,
+    pub(super) plain_root: PathBuf,
+}
+impl Stage {
+    pub(super) fn is_plain(&self, n: usize) -> bool {
+        self.manifest.plain.contains(&n)
+    }
+    /// 编号 n 的数据位置：挪动存放的在 `.plain` 目录，其余在临时解包目录。
+    pub(super) fn data(&self, n: usize) -> PathBuf {
+        let root = if self.is_plain(n) { &self.plain_root } else { &self.path };
+        root.join(format!("data/{n}"))
+    }
+}
+/// 只有体积大、可整体挪动的缓存与会话历史走快速切换；登录与配置数据仍加密归档。
+pub(super) fn movable(source: &Source) -> bool {
+    source.keys.is_empty() && matches!(source.category.as_str(), "cache" | "history")
+}
+pub(super) fn plain_dir(vault: &Path, archive: &str) -> PathBuf {
+    vault.join(format!("{}.plain", archive.trim_end_matches(".baga")))
 }
 impl Drop for Stage {
     fn drop(&mut self) {
@@ -157,10 +178,18 @@ impl Store {
             {
                 return Err("身份路径超出允许范围。".into());
             }
+            if manifest
+                .plain
+                .iter()
+                .any(|&n| manifest.sources.get(n).is_none_or(|s| !movable(s)))
+            {
+                return Err("身份归档成员无效。".into());
+            }
             let expected: std::collections::HashSet<_> = manifest
                 .sources
                 .iter()
                 .enumerate()
+                .filter(|(n, _)| !manifest.plain.contains(n))
                 .map(|(n, _)| format!("data/{n}"))
                 .collect();
             for path in files {
@@ -178,6 +207,10 @@ impl Store {
                 }
             }
             for (n, source) in manifest.sources.iter().enumerate() {
+                // 挪动存放的数据可能在 .plain 目录，也可能已挪回工作区；不在归档里校验。
+                if manifest.plain.contains(&n) {
+                    continue;
+                }
                 let data = folder.join(format!("data/{n}"));
                 if !data.exists() {
                     return Err("身份归档不完整。".into());
@@ -197,6 +230,7 @@ impl Store {
             Ok(manifest) => Ok(Stage {
                 path: folder,
                 manifest,
+                plain_root: plain_dir(&self.vault, &record.archive),
             }),
             Err(e) => {
                 let _ = fs::remove_dir_all(folder);
@@ -210,7 +244,17 @@ impl Store {
         policy: &Policy,
         reporter: &Reporter,
     ) -> Result<(Record, Stage), String> {
-        self.save_inner(name, policy, reporter, true)
+        self.save_inner(name, policy, reporter, true, false)
+    }
+    /// 切换用：plain=true 时缓存与会话历史不进归档，稍后由 Store::park 整目录挪进 .plain。
+    pub(super) fn save_switch(
+        &self,
+        name: &str,
+        policy: &Policy,
+        reporter: &Reporter,
+        plain: bool,
+    ) -> Result<(Record, Stage), String> {
+        self.save_inner(name, policy, reporter, true, plain)
     }
     pub(super) fn save_checkpoint(
         &self,
@@ -218,7 +262,7 @@ impl Store {
         policy: &Policy,
         reporter: &Reporter,
     ) -> Result<(Record, Stage), String> {
-        self.save_inner(name, policy, reporter, false)
+        self.save_inner(name, policy, reporter, false, false)
     }
     fn save_inner(
         &self,
@@ -226,6 +270,7 @@ impl Store {
         policy: &Policy,
         reporter: &Reporter,
         reuse: bool,
+        plain: bool,
     ) -> Result<(Record, Stage), String> {
         self.stopped()?;
         reporter.log("validate", "running", "正在检查当前身份文件。", 0, None);
@@ -293,6 +338,16 @@ impl Store {
             .or(draft)
             .unwrap_or(super::new_id()?);
         let generation = super::new_id()?;
+        let plain = if plain {
+            sources
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| movable(s))
+                .map(|(n, _)| n)
+                .collect()
+        } else {
+            Vec::new()
+        };
         let manifest = Manifest {
             version: 1,
             id: id.clone(),
@@ -303,6 +358,7 @@ impl Store {
             credentials,
             fingerprints,
             account_key: account_key.clone(),
+            plain,
         };
         let pending = self.vault.join(format!(".pending-{generation}"));
         let destination = self.vault.join(format!("{generation}.baga"));
@@ -323,7 +379,9 @@ impl Store {
             for (n, source) in manifest.sources.iter().enumerate() {
                 self.stopped()?;
                 let archive_path = PathBuf::from(format!("data/{n}"));
-                if !source.keys.is_empty() {
+                if manifest.plain.contains(&n) {
+                    // 快速切换：不打包，清空工作区时整目录挪走。
+                } else if !source.keys.is_empty() {
                     let text = fs::read_to_string(&source.path).map_err(problem)?;
                     let bytes =
                         serde_json::to_vec(&identity::extract(source, &text)?).map_err(problem)?;
@@ -399,7 +457,7 @@ impl Store {
                 .zip(&manifest.fingerprints)
                 .enumerate()
             {
-                if identity::fingerprint(&source.path)? != *stamp {
+                if !manifest.plain.contains(&index) && identity::fingerprint(&source.path)? != *stamp {
                     return Err("身份数据发生变化；未切换身份。".into());
                 }
                 reporter.log(

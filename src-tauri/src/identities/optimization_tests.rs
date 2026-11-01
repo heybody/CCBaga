@@ -856,3 +856,82 @@ fn carry_sessions_keeps_live_history_and_merges_archived_without_overwrite() {
     assert_eq!(f.token(), "a-token");
     assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
 }
+#[test]
+fn fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mix() {
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    let read = |path: &str| fs::read(f.home.join(path)).unwrap();
+    let plain_dirs = || {
+        fs::read_dir(&f.vault)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".plain"))
+            .count()
+    };
+    // A 用旧格式（完整归档）暂存。
+    f.login("A", "one", "a-token");
+    f.write(".claude/projects/p/a.jsonl", b"a-session");
+    #[cfg(target_os = "macos")]
+    f.write("Library/Caches/com.anthropic.claudefordesktop/a.bin", b"a-cache");
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    assert_eq!(plain_dirs(), 0);
+    // 打开快速切换：B 的会话与缓存整目录挪走，A 从旧归档恢复。
+    s.db.set_flag("fast_archive", true).unwrap();
+    f.login("B", "one", "b-token");
+    f.write(".claude/projects/p/b.jsonl", b"b-session");
+    #[cfg(target_os = "macos")]
+    f.write("Library/Caches/com.anthropic.claudefordesktop/b.bin", b"b-cache");
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    assert_eq!(read(".claude/projects/p/a.jsonl"), b"a-session");
+    assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
+    #[cfg(target_os = "macos")]
+    assert_eq!(read("Library/Caches/com.anthropic.claudefordesktop/a.bin"), b"a-cache");
+    assert_eq!(plain_dirs(), 1);
+    let b = s.records().into_iter().find(|row| row.id != a).unwrap().id;
+    // 切回 B：数据挪回，A 也改为挪动存放。
+    s.switch(&b, "A", &p, &r).unwrap();
+    assert_eq!(f.token(), "b-token");
+    assert_eq!(read(".claude/projects/p/b.jsonl"), b"b-session");
+    assert!(!f.home.join(".claude/projects/p/a.jsonl").exists());
+    #[cfg(target_os = "macos")]
+    assert_eq!(read("Library/Caches/com.anthropic.claudefordesktop/b.bin"), b"b-cache");
+    // 清空后失败回滚：B 的数据挪回工作区，A 的存放不受影响。
+    s.fail_after_clear = true;
+    assert!(s.switch(&a, "B", &p, &r).is_err());
+    s.fail_after_clear = false;
+    assert_eq!(f.token(), "b-token");
+    assert_eq!(read(".claude/projects/p/b.jsonl"), b"b-session");
+    assert!(s.db.get("recovery").unwrap().is_none());
+    s.switch(&a, "B", &p, &r).unwrap();
+    assert_eq!(read(".claude/projects/p/a.jsonl"), b"a-session");
+    assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
+    // 模拟崩溃：A 已挪走、未恢复目标，恢复后 A 原样回来。
+    let (saved, stage) = s.save_switch("A", &p, &r, true).unwrap();
+    s.db.pending(&saved, &b).unwrap();
+    let current = store::Store::selected(&stage, &p);
+    s.park(&stage, &current).unwrap();
+    s.clear(&current, &r, "clear").unwrap();
+    assert!(!f.home.join(".claude/projects/p/a.jsonl").exists());
+    drop(stage);
+    s.recover("恢复前状态", &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    assert_eq!(read(".claude/projects/p/a.jsonl"), b"a-session");
+    assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
+    // 关闭快速切换后仍能切回 B（从挪动存放读取），并回收不再引用的存放目录。
+    s.db.set_flag("fast_archive", false).unwrap();
+    s.switch(&b, "A", &p, &r).unwrap();
+    assert_eq!(read(".claude/projects/p/b.jsonl"), b"b-session");
+    drop(s);
+    let s = store::Store::open(&f.vault, &f.home).unwrap();
+    let referenced: Vec<_> = s.records().into_iter().map(|row| row.archive).collect();
+    for entry in fs::read_dir(&f.vault).unwrap().filter_map(Result::ok) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(generation) = name.strip_suffix(".plain") {
+            assert!(referenced.contains(&format!("{generation}.baga")));
+        }
+    }
+}

@@ -179,7 +179,7 @@ fn validate_metadata(metadata: &Metadata) -> Result<(), String> {
     if m.sources.iter().any(|source| m.sources.iter().any(|parent| parent.path != source.path && parent.keys.is_empty() && source.path.starts_with(&parent.path))) { return Err(invalid()); }
     if let Some(browser) = &metadata.browser { browser.config()?; }
     let filtered = credentials(&m.credentials, &m.policy)?;
-    if filtered != m.credentials || m.account_key.is_some() { return Err(invalid()); }
+    if filtered != m.credentials || m.account_key.is_some() || !m.plain.is_empty() { return Err(invalid()); }
     Ok(())
 }
 fn append<W: Write>(tar: &mut tar::Builder<W>, name: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -188,7 +188,11 @@ fn append<W: Write>(tar: &mut tar::Builder<W>, name: &Path, bytes: &[u8]) -> Res
     tar.append_data(&mut header, name, bytes).map_err(problem)
 }
 fn each_data(stage: &Stage, visit: &mut impl FnMut(&Path, &Path, bool) -> Result<(), String>) -> Result<(), String> {
-    for n in 0..stage.manifest.sources.len() { archive::walk(&stage.path.join(format!("data/{n}")), &stage.path, visit)?; }
+    for n in 0..stage.manifest.sources.len() {
+        // 快速切换挪动存放的数据在 .plain 目录，成员名同样是 data/{n}/…。
+        let root = if stage.is_plain(n) { &stage.plain_root } else { &stage.path };
+        archive::walk(&stage.data(n), root, visit)?;
+    }
     Ok(())
 }
 fn checked_data(stage: &Stage) -> Result<(usize, u64), String> {
@@ -225,10 +229,14 @@ impl Store {
         let record = self.record(id)?;
         reporter.log("transfer_validate", "running", "正在验收已保存身份。", 0, None);
         let stage = self.load(&record)?;
+        if stage.manifest.plain.iter().any(|&n| !stage.data(n).exists()) {
+            return Err("该身份的缓存或会话正在工作区使用中；请先在身份页点「更新备份」后再导出。".into());
+        }
         checked_data(&stage)?;
         let mut manifest: Manifest = serde_json::from_value(serde_json::to_value(&stage.manifest).map_err(problem)?).map_err(problem)?;
         manifest.credentials = credentials(&manifest.credentials, &manifest.policy)?;
         manifest.account_key = None;
+        manifest.plain.clear();
         let metadata = Metadata { version: 1, name: record.name, manifest, browser: browser.map(BrowserSettings::from_config) };
         validate_metadata(&metadata)?;
         let serialized = Zeroizing::new(serde_json::to_vec(&metadata).map_err(problem)?);
@@ -364,7 +372,7 @@ fn unpack(mut file: fs::File, password: &str, parent: &Path, reporter: &Reporter
             }
         }
         reporter.log("transfer_validate", "ok", "迁移包已通过完整认证与范围检查。", count - 1, Some(count - 1));
-        Ok(Imported { stage: Stage { path: folder.clone(), manifest: metadata.manifest }, name: metadata.name, browser: metadata.browser })
+        Ok(Imported { stage: Stage { path: folder.clone(), manifest: metadata.manifest, plain_root: folder.clone() }, name: metadata.name, browser: metadata.browser })
     })();
     if result.is_err() { let _ = fs::remove_dir_all(folder); }
     result

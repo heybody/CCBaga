@@ -86,7 +86,7 @@ pub struct State {
     pub current: profile::Current,
     pub options: Options,
 }
-/// 本地维护开关：会话带入新账号、快速切换（不压缩）。
+/// 本地维护开关：带入未归档会话、快速切换（缓存与会话直接挪动，不压缩不打包）。
 #[derive(Serialize)]
 pub struct Options {
     pub carry_sessions: bool,
