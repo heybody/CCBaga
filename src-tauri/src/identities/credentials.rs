@@ -37,6 +37,19 @@ pub fn clear(items: &[Value], policy: &Policy) -> Result<Vec<Value>, String> {
         })
         .collect()
 }
+/// 切换时只删除目标身份没有的钥匙串项目；同服务同账户的项目由 restore 原地改值。
+/// 删除后重建会丢掉用户给 Claude 的「始终允许」与分区授权，Desktop 每次切换都会要求输入钥匙串密码。
+pub fn not_replaced(outgoing: &[Value], incoming: &[Value]) -> Vec<Value> {
+    outgoing
+        .iter()
+        .filter(|item| {
+            !incoming
+                .iter()
+                .any(|next| next["service"] == item["service"] && next["account"] == item["account"])
+        })
+        .cloned()
+        .collect()
+}
 pub fn restore(items: &[Value], live: &[Value], policy: &Policy) -> Result<Vec<Value>, String> {
     items
         .iter()
@@ -90,5 +103,18 @@ mod tests {
         assert_eq!(value["claudeAiOauth"]["accessToken"], "target");
         assert_eq!(value["mcpOAuth"], "latest");
         assert_eq!(value["pluginSecrets"], "keep-plugin");
+    }
+    #[test]
+    fn switching_keeps_items_the_target_also_has_for_in_place_update() {
+        let row = |service: &str, account: &str| serde_json::json!({"service":service,"account":account,"data":"eA=="});
+        let outgoing = [row("Claude Safe Storage", "Claude Key"), row("Claude Code", "me")];
+        let incoming = [row("Claude Safe Storage", "Claude Key")];
+        let removed = not_replaced(&outgoing, &incoming);
+        assert_eq!(removed, vec![row("Claude Code", "me")]);
+        // 目标是空身份时全部删除，行为不变。
+        assert_eq!(not_replaced(&outgoing, &[]).len(), 2);
+        // 原地改值依赖 restore 给出当前值作为 expected。
+        let next = restore(&incoming, &outgoing, &Policy::default()).unwrap();
+        assert_eq!(next[0]["expected"], "eA==");
     }
 }

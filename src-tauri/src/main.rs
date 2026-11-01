@@ -155,7 +155,7 @@ fn main() {
 
         ])
         .build(tauri::generate_context!())
-        .expect("无法启动 CCBaga-A")
+        .expect("无法启动 CCD Switch")
         .run(|app, event| match event {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => show(app),

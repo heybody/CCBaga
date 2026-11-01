@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CCBaga-A",
+  "productName": "CCD Switch",
   "version": "0.2.0",
   "identifier": "ai.local.requirement-french",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "CCBaga-A",
+        "title": "CCD Switch",
         "width": 1040,
         "height": 820,
         "minWidth": 760,

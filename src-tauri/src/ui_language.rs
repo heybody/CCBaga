@@ -59,9 +59,9 @@ pub fn menu(
         app,
         "open",
         if language == "en" {
-            "Open CCBaga-A"
+            "Open CCD Switch"
         } else {
-            "打开 CCBaga-A"
+            "打开 CCD Switch"
         },
         true,
         None::<&str>,

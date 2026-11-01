@@ -64,20 +64,20 @@ jobs:
           clang -fobjc-arc -framework Foundation -framework Security src-tauri/native/IdentityTests.m -o "$identity_test"
           "$identity_test"
           cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
-      - name: 构建 CCBaga-A
+      - name: 构建 CCD Switch
         run: bun run tauri build --debug --bundles app --features custom-protocol --config packaging/cares/local-build.json
       - name: 打包
         run: |
           V=${{ steps.version.outputs.version }}
           mkdir -p out
-          ditto -c -k --keepParent src-tauri/target/debug/bundle/macos/CCBaga-A.app "out/CCBaga-A_${V}_macos_arm64.zip"
+          ditto -c -k --keepParent "src-tauri/target/debug/bundle/macos/CCD Switch.app" "out/CCD-Switch_${V}_macos_arm64.zip"
           cd out && shasum -a 256 *.zip > checksums.txt && cat checksums.txt
       - uses: actions/upload-artifact@v5
         with:
-          name: CCBaga-A-${{ steps.version.outputs.version }}-macos-arm64
+          name: CCD-Switch-${{ steps.version.outputs.version }}-macos-arm64
           path: out/
       - name: 发布 Release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" out/* --title "$GITHUB_REF_NAME" --notes "CCBaga-A 本地维护构建（身份管理专用），基于上游 ${GITHUB_REF_NAME%%+*}；ad-hoc 签名，仅供 mbp 安装脚本使用"
+        run: gh release create "$GITHUB_REF_NAME" out/* --title "$GITHUB_REF_NAME" --notes "CCD Switch（原 CCBaga-A）本地维护构建（身份管理专用），基于上游 ${GITHUB_REF_NAME%%+*}；ad-hoc 签名，仅供 mbp 安装脚本使用"

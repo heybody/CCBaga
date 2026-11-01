@@ -670,7 +670,15 @@ impl Store {
                 0,
                 None,
             );
-            self.keys(&outgoing.manifest.credentials, false, policy)?;
+            // 目标身份也有的钥匙串项目不删，稍后原地改值，保留用户给 Claude 的「始终允许」与分区授权。
+            let removed = super::credentials::not_replaced(
+                &outgoing.manifest.credentials,
+                incoming
+                    .as_ref()
+                    .map(|s| s.manifest.credentials.as_slice())
+                    .unwrap_or_default(),
+            );
+            self.keys(&removed, false, policy)?;
             reporter.log("credentials", "ok", "当前本地登录凭据已清除。", 1, Some(1));
             if let Some(stage) = incoming.as_ref() {
                 self.restore(stage, &next, policy, reporter, "restore")?;

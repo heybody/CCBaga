@@ -27,7 +27,7 @@ function App() {
     const locked = advancedBusy || updateBusy;
     return <><div className="drag-strip" onMouseDown={e => { if (e.button === 0)
         void getCurrentWindow().startDragging(); }}/><div className="app-shell"><aside className="app-sidebar">
-    <div className="app-brand"><img src={appLogo} width={28} height={28} alt="" draggable={false} className="rounded-xl"/><strong>{t("BAGA!")}</strong></div>
+    <div className="app-brand"><img src={appLogo} width={28} height={28} alt="" draggable={false} className="rounded-xl"/><strong>{t("CCD Switch")}</strong></div>
     <nav aria-label={t("主要页面")}>{(['cleaner', 'help'] as const).map(p => { const Icon = icons[p]; return <Fragment key={p}>{(p==='help')&&<hr className="nav-divider"/>}<NavButton className="workspace-nav" active={page === p} aria-current={page === p ? "page" : undefined} disabled={locked} icon={<Icon size={18} aria-hidden="true"/>} onClick={() => {setPage(p);}}>{t(titles[p])}</NavButton></Fragment>; })}</nav>
     <div className="sidebar-bottom"><AppUpdate blocked={advancedBusy} onBusy={setUpdateBusy}/><LanguageSwitch /></div>
   </aside><Panel frame className="workspace" inert={updateBusy}>
