@@ -608,7 +608,7 @@ html.ccd-dark #app { display:flex; flex-direction:column; background-color:var(-
 .slot { position:relative; border-bottom:1px solid var(--ccd-line); }
 .slot-glow { position:absolute; inset:0; background:linear-gradient(90deg,#5dcaa51f,#5dcaa508 60%,transparent); border-left:2px solid var(--ccd-accent); pointer-events:none; }
 .slot-row { position:relative; display:flex; align-items:stretch; }
-.slot-main { flex:1; min-width:0; display:grid; grid-template-columns:24px minmax(0,1fr) auto auto; align-items:center; gap:12px; padding:12px 8px 12px 18px; border:0; background:transparent; color:inherit; text-align:left; font:inherit; }
+.slot-main { flex:1; min-width:0; display:grid; grid-template-columns:24px minmax(0,1fr) auto auto auto; align-items:center; gap:12px; padding:9px 8px 9px 18px; border:0; background:transparent; color:inherit; text-align:left; font:inherit; }
 .slot-main:hover:not(:disabled):not([aria-disabled=true]),.slot-main:focus-visible { background:var(--ccd-hover); }
 .slot-main:focus-visible { outline:none; box-shadow:inset 2px 0 0 var(--ccd-accent); }
 .slot-main[aria-disabled=true] { cursor:default; }
@@ -778,3 +778,30 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
   .slot-confirm-grid > span,.slot-confirm-grid > label { margin-top:6px; }
   .slot-tags { max-width:110px; }
 }
+
+/* ----- 紧凑两行：邮箱与组织/时间同一行，额度在右侧竖排 ----- */
+.slot-text { gap:1px; }
+.slot-sub .slot-meta { font-size:inherit; color:var(--ccd-faint); }
+.slot-usage { display:grid; gap:3px; margin:0; justify-items:end; }
+.usage-item { gap:4px; }
+.usage-item > span { min-width:14px; text-align:right; color:var(--ccd-faint); }
+.usage-item i { width:36px; height:3px; }
+.usage-item code { min-width:30px; text-align:right; }
+.slot-cta { min-width:0; }
+.slot:not(.expanded) .slot-main:not(:hover):not(:focus-visible) .slot-cta { width:0; overflow:hidden; }
+
+/* ----- 切换确认底部弹层：标题与按钮固定，内容区滚动 ----- */
+.ccd-sheet-backdrop { position:absolute; inset:0; z-index:30; background:#05080acc; }
+.slot-confirm.ccd-sheet { position:absolute; z-index:31; left:0; right:0; bottom:0; max-height:86%; display:flex; flex-direction:column; overflow:hidden; border-top:1px solid var(--ccd-line2); border-radius:14px 14px 0 0; background:var(--ccd-raise); box-shadow:0 -18px 40px -12px #000c; }
+.ccd-sheet .sheet-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px 6px 18px; }
+.ccd-sheet .sheet-head strong { font-size:14px; font-weight:600; color:var(--ccd-strong); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ccd-sheet .slot-confirm-body { flex:1; min-height:0; overflow-y:auto; padding:4px 18px 10px; gap:10px; scrollbar-width:thin; }
+.ccd-sheet .slot-confirm-grid { grid-template-columns:auto minmax(0,1fr); gap:6px 12px; }
+.ccd-sheet .slot-confirm-grid > span,.ccd-sheet .slot-confirm-grid > label { margin-top:0; }
+.ccd-sheet .slot-confirm-actions { padding:10px 18px 14px; border-top:1px solid var(--ccd-line); background:var(--ccd-raise); }
+.ccd-recovery .slot-confirm-actions { padding:0 12px 12px; }
+.ccd-sheet .identity-confirm { padding:8px 10px; }
+.ccd-sheet .identity-confirm p { display:none; }
+.ccd-sheet .identity-delete-warning strong { font-size:12px; line-height:1.5; }
+.slot-link.inline { margin-left:8px; font-size:12px; color:var(--ccd-accent); text-decoration:none; }
+.slot-link.inline:hover { text-decoration:underline; }

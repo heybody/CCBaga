@@ -35,7 +35,7 @@ function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:(key:string,value
  const minutes=Math.max(0,Math.round((now-usage.sampled_at)/60000));
  const ago=minutes<1?t('刚刚'):minutes<60?t('{v0} 分钟前',{v0:minutes}):minutes<2880?t('{v0} 小时前',{v0:Math.round(minutes/60)}):t('{v0} 天前',{v0:Math.round(minutes/1440)});
  const bar=(label:string,value?:number)=>value===undefined?null:<span className={`usage-item${usageLevel(value)}`}><span>{label}</span><i aria-hidden="true"><b style={{width:`${value}%`}}/></i><code>{value}%</code></span>;
- return <span className="slot-usage" title={t('来自 Claude 桌面 App 本地用量记录，不是实时数据。')}>{bar(t('5 小时'),usage.five_hour)}{bar(t('每周'),usage.seven_day)}<em>{ago}</em></span>;
+ return <span className="slot-usage" title={`${t('来自 Claude 桌面 App 本地用量记录，不是实时数据。')} · ${ago}`}>{bar(t('5h'),usage.five_hour)}{bar(t('周'),usage.seven_day)}</span>;
 }
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
@@ -231,14 +231,17 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const running=loading?t('检查中'):state?.processes==null?t('进程状态未知'):state.running?t('Claude 运行中'):t('Claude 未运行');
  const date=(value:number)=>new Date(value).toLocaleString(locale==='zh'?'zh-CN':'en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
  const confirmTitle=(target:Target)=>target==='recovery'?t('恢复原身份'):target==='save'?t(active?'更新当前身份备份':'保存当前身份备份'):target==='empty'?t('切换到空身份'):t('切换身份');
- const confirmPanel=(target:Target)=><motion.div key="confirm" className="slot-confirm" role="region" aria-label={confirmTitle(target)}
-  initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} transition={{duration:.22,ease:[.2,.8,.2,1]}}>
+ const confirmTitle2=(target:Target)=>target==='recovery'||target==='save'?confirmTitle(target):t('切换到 {v0}',{v0:target==='empty'?t('空身份'):target.name});
+ // ----- 确认面板：标题与按钮固定，中间内容可滚动；切换/备份以底部弹层呈现，恢复仍在恢复提示内 -----
+ const confirmPanel=(target:Target,sheet=false)=><motion.div key="confirm" className={`slot-confirm${sheet?' ccd-sheet':''}`} role="region" aria-label={confirmTitle(target)}
+  initial={sheet?{y:'100%'}:{height:0,opacity:0}} animate={sheet?{y:0}:{height:'auto',opacity:1}} exit={sheet?{y:'100%'}:undefined} transition={sheet?{type:'spring',stiffness:420,damping:38}:{duration:.22,ease:[.2,.8,.2,1]}}>
+  {sheet&&<header className="sheet-head"><strong>{confirmTitle2(target)}</strong><button type="button" className="drawer-close" aria-label={t('关闭')} onClick={()=>setReview(null)}>✕</button></header>}
   <div className="slot-confirm-body">
    <p className="slot-confirm-lead">{target==='save'?t('把当前身份原地加密写入保险库；当前工作区与登录保持不变。'):target==='recovery'?t('先存下现状，再恢复上一次未完成切换前的身份。'):t('先加密备份当前身份，再换成 {v0}。',{v0:target==='empty'?t('空身份'):target.name})}</p>
    <div className="slot-confirm-grid">
     <label htmlFor="identity-current-name">{t('当前身份保存为')}</label><Input id="identity-current-name" maxLength={64} value={name} onChange={e=>setName(e.target.value)}/>
     {target==='save'&&<><span>{t('纳入加密备份')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></>}
-    <span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong>
+    <span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}{target!=='recovery'&&<button type="button" className="slot-link inline" onClick={()=>setDrawer('keep')}>{t('调整')}</button>}</strong>
    </div>
    <div className="slot-processes">
     <button type="button" className="slot-link" aria-expanded={showProcesses} onClick={()=>setShowProcesses(value=>!value)}>{state?.processes==null?t('进程状态未知；执行前将重新核验。'):state.processes.length?t('确认后结束 {v0} 个 Claude 进程',{v0:state.processes.length}):t('未检测到 Claude 进程。')}</button>
@@ -247,11 +250,11 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    </div>
    <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>
    <p className="slot-note">{t('只管理本地状态；失效的登录可能需要重新认证。')}</p>
-   <div className="slot-confirm-actions">
-    <Button variant="secondary" size="small" data-dialog-cancel autoFocus onClick={()=>setReview(null)}>{t('取消')}</Button>
-    <Button variant="ink" size="small" disabled={!stopAccepted||busy||loading||!state||!name.trim()||(target!=='recovery'&&!!state.recovery)} onClick={()=>void change()}>{target==='recovery'?t('结束进程并恢复'):target==='save'?t('结束进程并保存备份'):t('结束进程、暂存并切换')}</Button>
-    <span className="slot-hint">{t('Esc 取消')}</span>
-   </div>
+  </div>
+  <div className="slot-confirm-actions">
+   <Button variant="secondary" size="small" data-dialog-cancel autoFocus onClick={()=>setReview(null)}>{t('取消')}</Button>
+   <Button variant="ink" size="small" disabled={!stopAccepted||busy||loading||!state||!name.trim()||(target!=='recovery'&&!!state.recovery)} onClick={()=>void change()}>{target==='recovery'?t('结束进程并恢复'):target==='save'?t('结束进程并保存备份'):t('结束进程、暂存并切换')}</Button>
+   <span className="slot-hint">{t('Esc 取消')}</span>
   </div>
  </motion.div>;
  function slotView(slot:Slot,index:number){
@@ -287,10 +290,9 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       <span className={`slot-index${on?' live':''}`} aria-hidden="true">{on?<i className="slot-dot"/>:index+1}</span>
       <span className="slot-text">
        <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
-       {email&&<span className="slot-sub">{email}</span>}
-       {detail.filter(Boolean).length>0&&<span className="slot-meta">{detail.filter(Boolean).join(' · ')}</span>}
-       {meta?.usage&&slot.kind!=='empty'&&<UsageLine usage={meta.usage} now={now} t={t}/>}
+       {(email||detail.some(Boolean))&&<span className="slot-sub">{email&&<span>{email}</span>}{detail.some(Boolean)&&<span className="slot-meta">{email?' · ':''}{detail.filter(Boolean).join(' · ')}</span>}</span>}
       </span>
+      {meta?.usage&&slot.kind!=='empty'?<UsageLine usage={meta.usage} now={now} t={t}/>:<span/>}
       <span className="slot-tags">
        {status&&status!=='unknown'&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
       </span>
@@ -301,7 +303,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
      {menuItems.map(item=><button key={item.label} type="button" role="menuitem" className={item.danger?'danger':undefined} onClick={item.run}>{item.label}</button>)}
     </motion.div>}</AnimatePresence>
    </div>
-   {expanded&&review&&confirmPanel(review)}
   </motion.li>;
  }
  const drawerTitle:Record<Drawer,string>={settings:t('设置'),residue:t('Claude 文件残留'),keep:t('工作区保留'),help:t('使用说明')};
@@ -330,6 +331,10 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    <Toggle label={t('快速模式')} hint={t('切换时直接移动缓存等数据；保存或更新备份时使用快速压缩，仍加密并校验。')} checked={fast} disabled={blocked} onChange={value=>void setOptions({fast_archive:value})}/>
    <button type="button" className="ccd-keep" onClick={()=>setDrawer('keep')}>{t('工作区保留')} <b>{kept.length}/{policyRows.length}</b> ›</button>
   </footer>
+  {review&&review!=='recovery'&&<>
+   <motion.div className="ccd-sheet-backdrop" aria-hidden="true" initial={{opacity:0}} animate={{opacity:1}} onClick={()=>{if(!busy)setReview(null);}}/>
+   {confirmPanel(review,true)}
+  </>}
   <AnimatePresence>{toast&&<motion.div className="ccd-toast" role="status" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} exit={{opacity:0,y:16}} transition={{type:'spring',stiffness:380,damping:30}}>
    <span>✓ {toast.text}</span>
    {toast.back&&(()=>{const back=toast.back==='empty'?'empty' as const:state?.records.find(row=>row.id===toast.back);return back?<button type="button" disabled={rowBlocked} onClick={()=>choose(back)}>{t('切回 {v0}',{v0:back==='empty'?t('空身份'):back.name})}</button>:null;})()}

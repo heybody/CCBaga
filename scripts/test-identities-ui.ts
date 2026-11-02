@@ -72,7 +72,7 @@ try{
  await current.getByRole('button',{name:/^更多操作/}).click();
  await page.getByRole('menuitem',{name:'更新备份',exact:true}).click();
  await confirmPanel.waitFor();
- assert.equal(await current.locator('.slot-confirm').count(),1);
+ assert.equal(await page.locator('.slot-confirm').count(),1);assert.match(await current.getAttribute('class')??'',/expanded/);
  assert.match(await confirmPanel.innerText(),/强制结束 Claude Desktop 和 Claude Code/);
  assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),true);
  assert.equal(await consent().isChecked(),false);
