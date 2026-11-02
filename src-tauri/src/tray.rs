@@ -64,7 +64,7 @@ pub fn menu(
     items.push(Box::new(MenuItem::with_id(
         app,
         "open",
-        if en { "Open CCD Switch" } else { "打开 CCD Switch" },
+        if en { "Open Claude Code Desktop Switch" } else { "打开 Claude Code Desktop Switch" },
         true,
         None::<&str>,
     )?));

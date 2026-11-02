@@ -309,7 +309,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  return <MotionConfig reducedMotion={motionSetting.active?'never':'always'}>
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <header className="ccd-bar">
-   <div className="ccd-brand"><strong>CCD Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status">{running}</span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
+   <div className="ccd-brand"><strong>Claude Code Desktop Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status">{running}</span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>

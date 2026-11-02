@@ -805,3 +805,7 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 .ccd-sheet .identity-delete-warning strong { font-size:12px; line-height:1.5; }
 .slot-link.inline { margin-left:8px; font-size:12px; color:var(--ccd-accent); text-decoration:none; }
 .slot-link.inline:hover { text-decoration:underline; }
+
+/* 长标题在最窄窗口下省略，不挤掉右侧按钮 */
+.ccd-brand { flex:1; }
+.ccd-brand strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

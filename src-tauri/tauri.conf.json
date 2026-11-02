@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "CCD Switch",
+        "title": "Claude Code Desktop Switch",
         "width": 460,
         "height": 500,
         "minWidth": 400,
