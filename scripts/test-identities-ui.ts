@@ -74,14 +74,17 @@ try{
  await confirmPanel.waitFor();
  assert.equal(await page.locator('.slot-confirm').count(),1);assert.match(await current.getAttribute('class')??'',/expanded/);
  assert.match(await confirmPanel.innerText(),/强制结束 Claude Desktop 和 Claude Code/);
+ assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),false);
+ await consent().uncheck();
  assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),true);
- assert.equal(await consent().isChecked(),false);
+ await consent().check();
+ assert.equal(await consent().isChecked(),true);
  assert.equal(await confirmPanel.getByRole('button',{name:'取消',exact:true}).evaluate(node=>node===document.activeElement),true);
  await page.keyboard.press('Escape');await confirmPanel.waitFor({state:'detached'});
  assert.equal(await fixtureCommands('identities_stop'),0);
  await current.getByRole('button',{name:/^更多操作/}).click();
  await page.getByRole('menuitem',{name:'更新备份',exact:true}).click();
- assert.equal(await consent().isChecked(),false);
+ assert.equal(await consent().isChecked(),true);
  await confirmPanel.getByRole('button',{name:/确认后结束 1 个 Claude 进程/}).click();
  assert.match(await confirmPanel.innerText(),/PID 4201/);assert.match(await confirmPanel.innerText(),/VS Code/);
  assert.match(await confirmPanel.locator('.slot-confirm-grid').innerText(),/纳入加密备份\s+登录与身份数据 · 会话历史 · 缓存与日志/);
@@ -118,7 +121,7 @@ try{
  await page.locator('.ccd-toast').getByText('已切换到 Identity 3').waitFor();
  await page.locator('.ccd-toast').getByRole('button',{name:'切回 空身份'}).click();
  await confirmPanel.waitFor();assert.match(await confirmPanel.innerText(),/再换成 空身份/);
- assert.equal(await consent().isChecked(),false);
+ assert.equal(await consent().isChecked(),true);
  await confirmPanel.getByRole('button',{name:'取消',exact:true}).click();checks++;
  // ----- 删除暂存身份不再提供浏览器资料选项；行内重命名后删除 -----
  const other=page.locator('.slot').filter({has:page.getByRole('button',{name:'切换到 Identity 4',exact:true})});

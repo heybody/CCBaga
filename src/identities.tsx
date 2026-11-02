@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 原生身份命令、保留策略、共享确认窗/进度、文件残留与 CLI 维护、定制版更新、界面语言与本机动效开关。
  * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、切换后可一键切回的提示；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
- * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复仍需每次独立勾选结束进程，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，旧关联资料由原生层兼容。
+ * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复的结束进程确认按用户偏好默认勾选，仍需点击执行，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，旧关联资料由原生层兼容。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import {useEffect,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
@@ -54,7 +54,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [cliBusy,setCliBusy]=useState(false);
  const [residueBusy,setResidueBusy]=useState(false),[residueRevision,setResidueRevision]=useState(0);
  const [error,setError]=useState('');
- const [stopAccepted,setStopAccepted]=useState(false);
+ const [stopAccepted,setStopAccepted]=useState(true);
  const [review,setReview]=useState<Target|null>(initialEmpty?'empty':null);
  const [name,setName]=useState(t('当前身份'));
  const [rename,setRename]=useState<Identity|null>(null), [renameValue,setRenameValue]=useState('');
@@ -160,7 +160,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   setName(target==='recovery'?t('恢复前状态'):target==='save'?(active?.name||currentName).slice(0,64):currentName.slice(0,64));
   if(target==='recovery') {const previous=state?.records.find(row=>row.id===state.recovery);if(previous)setPolicy({...previous.policy});}
   else if(target==='save'&&active)setPolicy({...active.policy});
-  setStopAccepted(false);setShowProcesses(false);setMenu(null);setToast(null);setReview(target);setError('');
+  setStopAccepted(true);setShowProcesses(false);setMenu(null);setToast(null);setReview(target);setError('');
  }
  async function stop() {
   await invoke('identities_stop',{confirmed:stopAccepted,onProgress:activity.channel()});
@@ -184,7 +184,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   } catch(e) {setError(String(e));activity.finish(false,String(e));await refreshAfterError();}
   finally {setBusy(false);}
  }
- function confirmDelete(target:Identity|'current') {setMenu(null);setDeletion(target);setStopAccepted(false);setAccepted(false);setError('');}
+ function confirmDelete(target:Identity|'current') {setMenu(null);setDeletion(target);setStopAccepted(true);setAccepted(false);setError('');}
  async function remove() {
   if(!deletion||!accepted||busy||(deletion==='current'&&!stopAccepted))return;
   const target=deletion;setDeletion(null);setBusy(true);setError('');

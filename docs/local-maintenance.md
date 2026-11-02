@@ -1,6 +1,8 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.12`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.13`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+
+local.13（2026-11-02 用户要求）：更新下载显示真实接收字节数与百分比，未知总量不伪造百分比；点击“下载并自动安装”后完成 SHA-256 校验、自动启动 NSIS passive 安装并重开 CCD Switch，仍不结束 Claude。进程结束与更新的确认框默认勾选，可取消勾选，操作仍须点击执行按钮；不可撤销删除/清理确认不预选。新增下载成功自动安装、字节/未知总量/校验阶段、下载失败不安装及安装启动失败重试的 UI 回归，原生回环 HTTP 验证实际字节进度及超限拒绝。
 
 local.12（2026-11-02，win-desktop）：Windows 独立 Claude Native Host 纳入进程枚举及精确安装路径判定，沿用当前用户 SID、创建时间和原句柄复核。快速模式部分缓存移动失败时，先将已移动内容逆序回填，再撤销未开始清除身份的事务；不再反复移动同一占用目录导致自动回滚与恢复一起失败。移动错误保留系统错误码，不输出凭据正文。新增 Windows 真实目录句柄占用、缓存回填、释放后空身份往返及连接器相似路径拒绝回归。
 

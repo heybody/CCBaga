@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 文件残留白名单扫描/快照清理命令、身份页任务锁与刷新信号、共享确认窗与卡片下统一进度通道。
- * [OUTPUT]: 当前 Claude 文件的逐项路径/规模/影响预览，默认只选完整缓存，明确确认后直接清理并复查。
+ * [OUTPUT]: 当前 Claude 文件的逐项路径/规模/影响预览，默认只选完整缓存，进程确认默认勾选、不可撤销确认仍手动勾选后清理并复查。
  * [POS]: 身份管理的文件维护区域；不访问钥匙串，路径和字段名之外的文件正文不进入界面。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -19,7 +19,7 @@ export function ClaudeResiduePanel({activity,blocked,revision,onBusy,onChanged}:
  const [scan,setScan]=useState<Scan|null>(null),[ids,setIds]=useState<string[]>([]);
  const [action,setAction]=useState<'scan'|'clean'|null>(null),[review,setReview]=useState(false),[accepted,setAccepted]=useState(false);
  const [error,setError]=useState('');
- const [stopAccepted,setStopAccepted]=useState(false);
+ const [stopAccepted,setStopAccepted]=useState(true);
  const items=scan?.items??[],available=items.filter(item=>item.exact);
  const selected=effectiveItems(items,ids),all=effectiveItems(available,available.map(item=>item.id));
  const bytes=(rows:typeof items)=>rows.reduce((sum,item)=>sum+item.bytes,0);
@@ -67,7 +67,7 @@ export function ClaudeResiduePanel({activity,blocked,revision,onBusy,onChanged}:
      <div className="claude-residue-file"><div className="claude-residue-file-title"><strong>{t(item.title)}</strong><span className={`claude-residue-risk ${item.risk}`}>{t(item.exact?riskLabels[item.risk]||item.risk:'统计不完整')}</span></div><code>{item.path}</code>{item.keys.length>0&&<span className="claude-residue-fields">{t('仅移除字段')} <code>{item.keys.join(', ')}</code></span>}<span className="claude-residue-impact">{t(item.impact)}</span></div>
      <div className="claude-residue-size">{item.exact?<><strong>{formatBytes(item.bytes)}</strong><span>{t('{v0} 个文件',{v0:item.files})}</span></>:<span>—</span>}</div>
     </li>)}</ul>
-    <div className="claude-residue-footer"><span>{t('个人设置、Skills、暂存身份和浏览器资料保留；不访问钥匙串。')}</span><Button variant="ink" size="small" disabled={locked||!selected.length} onClick={()=>{setAccepted(false);setStopAccepted(false);setReview(true);}}>{t('清理所选')}</Button></div>
+    <div className="claude-residue-footer"><span>{t('个人设置、Skills、暂存身份和浏览器资料保留；不访问钥匙串。')}</span><Button variant="ink" size="small" disabled={locked||!selected.length} onClick={()=>{setAccepted(false);setStopAccepted(true);setReview(true);}}>{t('清理所选')}</Button></div>
    </>}
   </>}
   <AppDialog alert className="identity-delete-alert" open={review} onOpenChange={open=>{if(!action)setReview(open);}} title={t('清理所选文件')} description={t('将结束 Claude 进程，直接删除所选文件或列出的配置字段，不创建备份。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setReview(false)}>{t('取消')}</Button><Button variant="ink" className="identity-delete-button" disabled={!accepted||!stopAccepted||!!action||!selected.length} onClick={()=>void clean()}>{t('结束进程并清理')}</Button></>}>

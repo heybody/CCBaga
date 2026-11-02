@@ -1,9 +1,10 @@
 // [INPUT]: 固定 fork 的 HTTPS Release 元数据和校验文件、当前版本、原生私有下载目录与事务锁。
-// [OUTPUT]: 数字比较 local 构建版本、校验后暂存 Windows 安装包、明确确认后只关闭本程序并启动安装器。
+// [OUTPUT]: 数字比较 local 构建版本、真实字节下载进度、校验暂存与复核后启动自动安装及重开本程序。
 // [POS]: 定制版更新边界；不接受客户端 URL/路径、不访问身份正文、不结束 Claude 进程。
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex, time::Duration};
 use tauri::Manager;
+use tauri::ipc::Channel;
 use crate::identities::private;
 const API: &str = "https://api.github.com/repos/heybody/CCBaga/releases?per_page=20";
 const LIMIT: usize = 100 * 1024 * 1024;
@@ -13,6 +14,8 @@ struct Asset { name: String, browser_download_url: String }
 struct Release { tag_name: String, draft: bool, prerelease: bool, assets: Vec<Asset> }
 #[derive(Clone, Serialize)]
 pub struct Info { pub current: String, pub latest: String, pub available: bool, pub supported: bool }
+#[derive(Clone, Serialize)]
+pub struct DownloadProgress { phase: &'static str, received: u64, total: Option<u64> }
 struct Package { info: Info, installer: String, checksum: String, filename: String }
 struct Ready { path: PathBuf, hash: String }
 #[derive(Default)]
@@ -56,12 +59,18 @@ fn client() -> Result<reqwest::Client,String> {
         })).build().map_err(|e|e.to_string())
 }
 async fn fetch(client:&reqwest::Client,url:&str,limit:usize)->Result<Vec<u8>,String> {
+    fetch_progress(client,url,limit,|_,_|{}).await
+}
+async fn fetch_progress(client:&reqwest::Client,url:&str,limit:usize,mut progress:impl FnMut(u64,Option<u64>))->Result<Vec<u8>,String> {
     let mut response=client.get(url).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?;
-    if response.content_length().is_some_and(|n|n>limit as u64) {return Err("更新文件超过大小限制。".into());}
+    let total=response.content_length();
+    if total.is_some_and(|n|n>limit as u64) {return Err("更新文件超过大小限制。".into());}
     let mut bytes=Vec::new();
+    progress(0,total);
     while let Some(chunk)=response.chunk().await.map_err(|e|e.to_string())? {
         if bytes.len().saturating_add(chunk.len())>limit {return Err("更新文件超过大小限制。".into());}
         bytes.extend_from_slice(&chunk);
+        progress(bytes.len() as u64,total);
     }
     Ok(bytes)
 }
@@ -83,15 +92,19 @@ fn expected(bytes:&[u8],filename:&str)->Result<String,String> {
 #[tauri::command]
 pub async fn local_update_check(app:tauri::AppHandle)->Result<Info,String> {Ok(latest(&app.package_info().version.to_string()).await?.info)}
 #[tauri::command]
-pub async fn local_update_download(app:tauri::AppHandle)->Result<Info,String> {
+pub async fn local_update_download(app:tauri::AppHandle,on_progress:Channel<DownloadProgress>)->Result<Info,String> {
     if !cfg!(windows) {return Err("此系统请使用维护安装流程。".into());}
     let cleaner=app.state::<crate::cleaner::Cleaner>();cleaner.enter()?;
     let result=async {
+        let _=on_progress.send(DownloadProgress{phase:"checking",received:0,total:None});
         let package=latest(&app.package_info().version.to_string()).await?;
         if !package.info.available {return Err("当前已是最新版本。".into());}
         let client=client()?;
         let hash=expected(&fetch(&client,&package.checksum,65536).await?,&package.filename)?;
-        let bytes=fetch(&client,&package.installer,LIMIT).await?;
+        let bytes=fetch_progress(&client,&package.installer,LIMIT,|received,total| {
+            let _=on_progress.send(DownloadProgress{phase:"downloading",received,total});
+        }).await?;
+        let _=on_progress.send(DownloadProgress{phase:"verifying",received:bytes.len() as u64,total:Some(bytes.len() as u64)});
         if sha(&bytes)!=hash || !bytes.starts_with(b"MZ") {return Err("安装包校验失败；未安装。".into());}
         let root=app.path().app_cache_dir().map_err(|e|e.to_string())?;
         private::directory(&root)?;
@@ -117,7 +130,8 @@ pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),Stri
         private::parents(&ready.path)?;private::safe(&ready.path)?;
         let bytes=std::fs::read(&ready.path).map_err(|e|e.to_string())?;
         if bytes.len()>LIMIT || sha(&bytes)!=ready.hash {return Err("安装包校验失败；未安装。".into());}
-        std::process::Command::new(&ready.path).spawn().map_err(|e|e.to_string())?;
+        // NSIS passive 模式自动完成安装；/R 完成后重开应用，/UPDATE 保留更新语义。
+        std::process::Command::new(&ready.path).args(["/P","/R","/UPDATE"]).spawn().map_err(|e|e.to_string())?;
         Ok(())
     })();
     cleaner.leave();
@@ -126,6 +140,25 @@ pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),Stri
 #[cfg(test)]
 mod tests {
  use super::*;
+ #[test] fn download_reports_received_bytes_and_handles_unknown_length_and_limit(){
+  use std::{io::{Read,Write},net::TcpListener};
+  fn response(headers:&str,body:&[u8])->(String,std::thread::JoinHandle<()>) {
+   let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+   let url=format!("http://{}/installer",listener.local_addr().unwrap());
+   let reply=format!("HTTP/1.0 200 OK\r\n{headers}Connection: close\r\n\r\n").into_bytes();
+   let body=body.to_vec();
+   let thread=std::thread::spawn(move||{let (mut stream,_)=listener.accept().unwrap();let mut request=[0;2048];let _=stream.read(&mut request);stream.write_all(&reply).unwrap();let _=stream.write_all(&body);});
+   (url,thread)
+  }
+  for (headers,total) in [("Content-Length: 6\r\n",Some(6)),("",None)] {
+   let (url,server)=response(headers,b"MZtest");let mut events=Vec::new();
+   let bytes=tauri::async_runtime::block_on(fetch_progress(&reqwest::Client::new(),&url,16,|n,total|events.push((n,total)))).unwrap();
+   server.join().unwrap();assert_eq!(bytes,b"MZtest");assert_eq!(events.first(),Some(&(0,total)));assert_eq!(events.last(),Some(&(6,total)));
+   assert!(events.windows(2).all(|pair|pair[0].0<=pair[1].0));
+  }
+  let (url,server)=response("Content-Length: 20\r\n",b"too large");
+  assert!(tauri::async_runtime::block_on(fetch_progress(&reqwest::Client::new(),&url,6,|_,_|{})).is_err());server.join().unwrap();
+ }
  #[test] fn local_versions_compare_build_numbers_and_reject_other_channels(){
   assert!(version("0.2.50+local.10")>version("0.2.50+local.9"));assert!(version("0.3.0+local.1")>version("0.2.50+local.99"));
   for invalid in ["0.2.50","v0.2.50-beta+local.1","0.2.50+local.01","0.2.50+local.10/evil"]{assert!(version(invalid).is_none());}
