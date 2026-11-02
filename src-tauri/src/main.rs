@@ -114,16 +114,18 @@ fn main() {
                 app.handle(),
                 &ui_language::ui_language_read(app.handle().clone()),
             )?;
-            // macOS 菜单栏用单色模板图标，由系统按明暗着色；其他平台沿用应用图标。
+            // 托盘使用满幅透明轮廓：macOS 单色模板，Windows 按系统栏明暗着色。
             #[cfg(target_os = "macos")]
             let tray = TrayIconBuilder::with_id("main")
                 .icon(tauri::include_image!("icons/tray.png"))
                 .icon_as_template(true);
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
+            let tray = TrayIconBuilder::with_id("main").icon(tray::windows_icon());
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
             let tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone());
             tray.menu(&menu)
-                .tooltip("CC")
+                .tooltip("CCD Switch")
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show(app),
                     "quit" => app.exit(0),
@@ -134,6 +136,8 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            #[cfg(target_os = "windows")]
+            tray::watch_windows_theme(app.handle().clone());
             startup_trace("host ready");
             Ok(())
         })

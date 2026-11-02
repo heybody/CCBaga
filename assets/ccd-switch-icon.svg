@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- CCD Switch 应用图标源：深色底、浅色 C 字弧与缺口处绿色开关点；由 scripts/make-icons.sh 渲染并套平台圆角 --><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262d31"/><stop offset="1" stop-color="#0f1315"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#74dab5"/><stop offset="1" stop-color="#28a77d"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#bg)"/>
-<path d="M690 330 A 260 260 0 1 0 690 694" fill="none" stroke="#e8edef" stroke-width="84" stroke-linecap="round"/>
-<circle cx="712" cy="512" r="74" fill="url(#g)"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16">
+  <!-- 托盘专用：透明底，接近满幅；16px 时字弧 2.8px、圆点直径 3.8px，保留独立间距。 -->
+  <path d="M10.9 3.9A5.5 5.5 0 1 0 10.9 12.1" fill="none" stroke="#172125" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="13.4" cy="8" r="1.9" fill="#24b888"/>
 </svg>

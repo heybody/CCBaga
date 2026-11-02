@@ -1,2 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
-  <!-- macOS 菜单栏模板图标源：C 字弧 + 实心点，纯黑透明底，由系统按菜单栏明暗着色 --><path d="M30 13 A12 12 0 1 0 30 31" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round"/><circle cx="32" cy="22" r="3.6" fill="#000"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 16 16">
+  <!-- 托盘专用：透明底，接近满幅；16px 时字弧 2.8px、圆点直径 3.8px，保留独立间距。 -->
+  <path d="M10.9 3.9A5.5 5.5 0 1 0 10.9 12.1" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="13.4" cy="8" r="1.9" fill="#000"/>
+</svg>

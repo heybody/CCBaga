@@ -78,16 +78,10 @@ jobs:
         with:
           name: CCD-Switch-${{ steps.version.outputs.version }}-macos-arm64
           path: out/
-      - name: 发布 Release
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" out/* --title "$GITHUB_REF_NAME" --notes "CCD Switch（原 CCBaga-A）本地维护构建（身份管理专用），基于上游 ${GITHUB_REF_NAME%%+*}；ad-hoc 签名，macOS 包仅供 mbp 安装脚本使用；Windows 安装包未签名"
 
   # Windows x64：当前用户 NSIS 安装包，同样不含浏览器 B 引擎与 B 快捷方式（packaging/cares/local-build-windows.json）。
-  # 未做代码签名，首次运行 SmartScreen 会提示；标签构建把安装包附到 macOS 任务已创建的同一 Release。
+  # Windows 独立构建，避免 macOS runner 排队阻塞；标签发布等两平台附件齐备再公开。
   windows:
-    needs: build
     runs-on: windows-2025
     timeout-minutes: 90
     env:
@@ -103,6 +97,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+      - name: 版本
+        id: version
+        shell: bash
+        run: |
+          V=$(python -c "import json; print(json.load(open('packaging/cares/local-build.json'))['version'])")
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$V" ]; then
+            echo "标签与 local-build.json 版本不一致" >&2; exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
       - name: 工具链与依赖
         shell: pwsh
         run: |
@@ -133,17 +136,28 @@ jobs:
       - name: 打包
         shell: bash
         run: |
-          V=${{ needs.build.outputs.version }}
+          V=${{ steps.version.outputs.version }}
           mkdir -p out
           cp src-tauri/target/release/bundle/nsis/*-setup.exe "out/CCD-Switch_${V}_windows_x64-setup.exe"
           cd out && sha256sum *.exe > checksums-windows.txt && cat checksums-windows.txt
       - uses: actions/upload-artifact@v5
         with:
-          name: CCD-Switch-${{ needs.build.outputs.version }}-windows-x64
+          name: CCD-Switch-${{ steps.version.outputs.version }}-windows-x64
           path: out/
-      - name: 附到 Release
-        if: github.ref_type == 'tag'
-        shell: bash
+  release:
+    if: github.ref_type == 'tag'
+    needs: [build, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: CCD-Switch-*
+          path: out
+          merge-multiple: true
+      - name: 完整上传后公开 Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --draft --title "$GITHUB_REF_NAME" --notes "CCD Switch 身份管理专用；macOS 为 ad-hoc 签名，Windows 安装包未签名。"
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest

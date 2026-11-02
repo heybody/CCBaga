@@ -1,7 +1,8 @@
 # scripts/
 > L2 | 父级: ../CLAUDE.md
 make-icon.swift: AppKit 将压缩品牌图绘入 macOS 圆角网格，保持原图并添加透明留白与投影。
-make-icons.sh: 从 assets/ 品牌图生成各尺寸 iconset，iconutil 输出 src-tauri/icons 与 browser-runtime/icons。
+make-icons.sh: 调用 make-ccd-icons.py 生成 CCD Switch 图标，另用 AppKit/iconutil 生成浏览器 B 图标。
+make-ccd-icons.py: Tauri SVG 转换器生成透明应用 PNG/ICO/ICNS、macOS 单色托盘及 Windows 深浅配色托盘，只复制明确列出的资产。
 brand-browser.sh: 编译 CCBrowser 入口、写入 CCBaga-B 名称/图标/各语言显示名、清除构建资源扩展属性并调用 sign-browser.py 完整签名（显式固定 ai.local.requirement-french.browser，干净上游引擎也必须与宿主一致）。
 sign-browser.py: 内层 Mach-O → Helper 应用 → Framework → 浏览器外壳顺序签名；Developer ID 使用可信时间戳、Hardened Runtime，仅 Renderer/GPU 使用 JIT entitlement；本机临时签名清除 runtime，防止缺 Team ID 的 Framework 被库验证拒绝。
 test-release-env.py: 伪造凭据环境导入真实发布入口，断言 Apple/更新私钥不进入构建子进程环境，不加载真实密钥，并验证票据网络重试不绕过无效/持续失败。
