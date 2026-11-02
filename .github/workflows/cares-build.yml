@@ -21,8 +21,11 @@ env:
 
 jobs:
   build:
-    runs-on: macos-15
+    # arm64 托管 runner 容量不足曾直接取消任务；Intel 上验证原生逻辑并交叉构建 arm64。
+    runs-on: macos-15-intel
     timeout-minutes: 90
+    env:
+      CCBAGA_TEST_BROWSER: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -48,14 +51,12 @@ jobs:
         run: |
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
+          rustup target add aarch64-apple-darwin
           bun install --frozen-lockfile
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
           cache-on-failure: true
-      - name: 下载测试用浏览器引擎
-        if: github.ref_type != 'tag'
-        run: python3 scripts/fetch-browser.py
       - name: 回归测试
         if: github.ref_type != 'tag'
         run: |
@@ -67,12 +68,12 @@ jobs:
           "$identity_test"
           cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
       - name: 构建 CCD Switch
-        run: bun run tauri build --debug --bundles app --features custom-protocol --config packaging/cares/local-build.json
+        run: bun run tauri build --debug --target aarch64-apple-darwin --bundles app --features custom-protocol --config packaging/cares/local-build.json
       - name: 打包
         run: |
           V=${{ steps.version.outputs.version }}
           mkdir -p out
-          ditto -c -k --keepParent "src-tauri/target/debug/bundle/macos/CCD Switch.app" "out/CCD-Switch_${V}_macos_arm64.zip"
+          ditto -c -k --keepParent "src-tauri/target/aarch64-apple-darwin/debug/bundle/macos/CCD Switch.app" "out/CCD-Switch_${V}_macos_arm64.zip"
           cd out && shasum -a 256 *.zip > checksums.txt && cat checksums.txt
       - uses: actions/upload-artifact@v5
         with:
