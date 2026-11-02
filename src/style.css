@@ -816,3 +816,9 @@ html.mac.ccd-dark .ccd-titlebar { display:flex; align-items:center; justify-cont
 html.mac.ccd-dark .ccd-titlebar strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; color:var(--ccd-strong); }
 html.mac.ccd-dark .ccd-bar .ccd-brand > strong { display:none; }
 html.mac.ccd-dark .ccd-bar { padding-top:0; }
+/* ----- macOS：运行状态与列表对齐——圆点对准行首圆点/编号列，文字对准身份名称列 ----- */
+html.mac.ccd-dark .ccd-bar { padding-left:18px; }
+html.mac.ccd-dark .ccd-bar .ccd-brand { gap:12px; }
+html.mac.ccd-dark .ccd-running { display:inline-grid; grid-template-columns:22px auto; align-items:center; column-gap:14px; font-size:12px; }
+html.mac.ccd-dark .ccd-running::before { content:''; justify-self:center; width:9px; height:9px; box-sizing:border-box; border-radius:50%; border:1.5px solid var(--ccd-faint); }
+html.mac.ccd-dark .ccd-running.on::before { border:0; background:var(--ccd-accent); box-shadow:0 0 0 3px #5dcaa533; }
