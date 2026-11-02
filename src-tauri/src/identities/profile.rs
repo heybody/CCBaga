@@ -14,6 +14,7 @@ struct Account {
     billing_type: Option<String>,
     organization_type: Option<String>,
     organization_rate_limit_tier: Option<String>,
+    organization_uuid: Option<String>,
 }
 impl Account {
     /// 无凭据元数据时（如 macOS 钥匙串不读取）用 .claude.json 的组织类型/限速档位推断套餐，不涉及令牌。
@@ -49,6 +50,11 @@ pub struct Current {
     pub auth_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<super::usage::Usage>,
+    /// 组织 UUID 只用于在原生层匹配桌面 App 用量样本，不送 UI。
+    #[serde(skip)]
+    pub org: Option<String>,
 }
 #[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Summary {
@@ -64,6 +70,9 @@ pub struct Summary {
     pub auth_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
+    /// 读取时由桌面 App 用量样本临时附加，不写入保险库。
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<super::usage::Usage>,
 }
 #[derive(Clone, Default, Serialize, Deserialize)]
 struct AuthMetadata {
@@ -97,8 +106,14 @@ pub(super) struct SavedSummary {
     summary: Summary,
     #[serde(default)]
     auth: Option<AuthMetadata>,
+    /// 组织 UUID 仅存于保险库，用于匹配用量样本；public_at 不带出。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    org: Option<String>,
 }
 impl SavedSummary {
+    pub(super) fn org(&self) -> Option<&str> {
+        self.org.as_deref()
+    }
     pub(super) fn public_at(&self, now_ms: i64) -> Summary {
         let mut summary = self.summary.clone();
         summary.auth_status = Some(
@@ -153,7 +168,7 @@ fn format_plan(sub: Option<&str>, tier: Option<&str>, billing: Option<&str>) -> 
         },
     }
 }
-fn read_bounded_json(path: &Path, max_bytes: u64) -> Option<Value> {
+pub(super) fn read_bounded_json(path: &Path, max_bytes: u64) -> Option<Value> {
     let meta = fs::symlink_metadata(path).ok()?;
     super::private::parents(path.parent()?).ok()?;
     super::private::safe(path).ok()?;
@@ -223,6 +238,7 @@ fn parse(bytes: &[u8]) -> Result<Current, serde_json::Error> {
                 tier.as_deref(),
                 account.billing_type.as_deref(),
             );
+            let org = super::usage::org_id(account.organization_uuid.as_deref());
             Current {
                 present: true,
                 desktop_present: false,
@@ -231,6 +247,7 @@ fn parse(bytes: &[u8]) -> Result<Current, serde_json::Error> {
                 organization: display(account.organization_name, 120),
                 unavailable: false,
                 plan,
+                org,
                 ..Current::default()
             }
         }
@@ -319,6 +336,7 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
     let mut auth = AuthMetadata::default();
     let mut billing_type = None;
     let mut hint = (None, None);
+    let mut org = None;
     let mut sub = None;
     let mut tier = None;
     let mut has_api_key = false;
@@ -333,6 +351,7 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
                 has_api_key |= cfg.api_key.is_some();
                 if let Some(acct) = cfg.account {
                     hint = acct.plan_hint();
+                    org = super::usage::org_id(acct.organization_uuid.as_deref());
                     summary.display_name = display(acct.display_name, 80);
                     summary.email = display(acct.email_address, 254);
                     summary.organization = display(acct.organization_name, 120);
@@ -380,6 +399,7 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
     SavedSummary {
         summary,
         auth: Some(auth),
+        org,
     }
 }
 pub fn process_previews(

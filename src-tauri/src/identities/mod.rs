@@ -19,6 +19,7 @@ pub(crate) mod portable;
 pub(crate) mod private;
 mod profile;
 mod store;
+mod usage;
 #[cfg(test)]
 mod tests;
 use crate::progress::{Progress, Reporter};
@@ -125,7 +126,18 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
     // 列表读取不能无锁打开会回收归档/暂存目录的 Store；文件事务只在持锁入口运行。
     let db = database::Database::open(&vault_path)?;
     let records = db.records()?.into_iter().filter(|r| !r.empty).collect();
-    let summaries = db.summaries()?;
+    let mut summaries = db.summaries()?;
+    // 额度只读桌面 App 本地用量样本，按组织 UUID 对应；无样本或旧摘要缺组织时不显示。
+    let usage = usage::read(&root_path);
+    if !usage.is_empty() {
+        for (id, org) in db.summary_orgs()? {
+            if let (Some(summary), Some(found)) = (summaries.get_mut(&id), usage.get(&org)) {
+                summary.usage = Some(found.clone());
+            }
+        }
+    }
+    let mut current = profile::read(&root_path);
+    current.usage = current.org.as_ref().and_then(|org| usage.get(org)).cloned();
     let (processes, processes_truncated) =
         profile::process_previews(crate::cleaner::identity::running_processes());
     // 检查失败显示未知；不能把查询错误当作已确认停止。
@@ -146,7 +158,7 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
             .unwrap_or_else(|| "current".into()),
         recovery: db.get("recovery")?,
         running,
-        current: profile::read(&root_path),
+        current,
         options: Options {
             carry_sessions: db.flag("carry_sessions")?,
             fast_archive: db.flag("fast_archive")?,

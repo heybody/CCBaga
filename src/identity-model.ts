@@ -6,9 +6,11 @@
  */
 export type IdentityPolicy={skills:boolean;plugins:boolean;mcp:boolean;settings:boolean;projects:boolean;history:boolean;cache:boolean};
 export type Identity={id:string;name:string;saved_at:number;bytes:number;policy:IdentityPolicy};
-export type IdentitySummary={display_name?:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null};
+/** 桌面 App 本地用量样本（百分比与采样毫秒时间），只读、非实时。 */
+export type PlanUsage={five_hour?:number;seven_day?:number;sampled_at:number};
+export type IdentitySummary={display_name?:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null;usage?:PlanUsage|null};
 export type ProcessPreview={pid:number;entrypoint:string;workspace:string|null};
-export type CurrentIdentity={present:boolean;desktop_present?:boolean;display_name:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null;unavailable:boolean};
+export type CurrentIdentity={present:boolean;desktop_present?:boolean;display_name:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null;usage?:PlanUsage|null;unavailable:boolean};
 export function currentAccountMessage(current:CurrentIdentity|undefined):string {
  if(current?.unavailable)return '账号信息暂不可读';
  return current?.desktop_present?'检测到 Desktop 本地资料；账号请在客户端确认':'未读取到 Code 账号邮箱；不代表未登录';

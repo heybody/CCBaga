@@ -21,7 +21,7 @@ import {AppUpdate,type UpdateInfo} from './app-update';
 import {LanguageSwitch} from './language-switch';
 import {HelpPanel} from './help';
 import {setMotionEnabled,useMotionSetting} from './motion-preference';
-import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,type Identity,type IdentityState} from './identity-model';
+import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,type Identity,type IdentityState,type PlanUsage} from './identity-model';
 type Target=Identity|'empty'|'recovery'|'save';
 type Drawer='settings'|'residue'|'keep'|'help';
 type Slot={key:string;kind:'current'|'saved'|'empty';record?:Identity;target?:Target};
@@ -29,6 +29,13 @@ type Slot={key:string;kind:'current'|'saved'|'empty';record?:Identity;target?:Ta
 function organization(meta:{email?:string|null;organization?:string|null}|null|undefined) {
  const org=meta?.organization;
  return org&&meta?.email&&org===`${meta.email}'s Organization`?null:org;
+}
+function usageLevel(value:number){return value>=100?' full':value>=80?' high':'';}
+function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:(key:string,values?:Record<string,string|number>)=>string}){
+ const minutes=Math.max(0,Math.round((now-usage.sampled_at)/60000));
+ const ago=minutes<1?t('刚刚'):minutes<60?t('{v0} 分钟前',{v0:minutes}):minutes<2880?t('{v0} 小时前',{v0:Math.round(minutes/60)}):t('{v0} 天前',{v0:Math.round(minutes/1440)});
+ const bar=(label:string,value?:number)=>value===undefined?null:<span className={`usage-item${usageLevel(value)}`}><span>{label}</span><i aria-hidden="true"><b style={{width:`${value}%`}}/></i><code>{value}%</code></span>;
+ return <span className="slot-usage" title={t('来自 Claude 桌面 App 本地用量记录，不是实时数据。')}>{bar(t('5 小时'),usage.five_hour)}{bar(t('每周'),usage.seven_day)}<em>{ago}</em></span>;
 }
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
@@ -77,6 +84,21 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  ];
  const isActive=(slot:Slot)=>slot.kind==='current'||(slot.kind==='empty'&&current?.present===false);
  useEffect(()=>{void read();},[]);
+ // ----- 主界面只显示身份操作进度：残留扫描结果留在残留抽屉；成功完成 4 秒后收起，打开确认时让位 -----
+ const [progressHidden,setProgressHidden]=useState(false);
+ const act=activity.state;
+ useEffect(()=>{
+  if(!act)return;
+  if(act.running){setProgressHidden(false);return;}
+  if(act.failed||act.warning)return;
+  const timer=setTimeout(()=>setProgressHidden(true),4000);return()=>clearTimeout(timer);
+ },[act?.running,act?.failed,act?.warning,act?.started]);
+ const showProgress=!!act&&(act.running||((act.kind==='identity'||act.kind==='clean')&&!progressHidden&&!review));
+ useEffect(()=>{
+  if(!review)return;
+  const frame=requestAnimationFrame(()=>document.querySelector('.slot.expanded, .ccd-recovery')?.scrollIntoView({block:'start',behavior:motionSetting.active?'smooth':'auto'}));
+  return()=>cancelAnimationFrame(frame);
+ },[review]);
  // ----- 菜单栏快捷切换：只同步名称列表；点选后在窗口内打开同一行内确认，结束进程仍需逐次勾选 -----
  const trayPick=useRef<(id:string)=>void>(()=>{});
  trayPick.current=id=>{
@@ -267,6 +289,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
        <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
        {email&&<span className="slot-sub">{email}</span>}
        {detail.filter(Boolean).length>0&&<span className="slot-meta">{detail.filter(Boolean).join(' · ')}</span>}
+       {meta?.usage&&slot.kind!=='empty'&&<UsageLine usage={meta.usage} now={now} t={t}/>}
       </span>
       <span className="slot-tags">
        {status&&status!=='unknown'&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
@@ -301,7 +324,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   <div className={`ccd-list-wrap${busy?' working':''}`}>
    <ol className="ccd-list" ref={list} aria-label={t('身份')}>{slots.map(slotView)}</ol>
   </div>
-  <IdentityOperationProgress activity={activity.state}/>
+  {showProgress&&<IdentityOperationProgress activity={activity.state}/>}
   <footer className="ccd-foot">
    <Toggle label={t('带入未完成会话')} hint={t('仅影响切换：未归档会话留在工作区并带入新账号，目标账号原有会话一并挪入；保存或更新备份仍包含当前会话。')} checked={carry} disabled={blocked} onChange={value=>void setOptions({carry_sessions:value})}/>
    <Toggle label={t('快速模式')} hint={t('切换时直接移动缓存等数据；保存或更新备份时使用快速压缩，仍加密并校验。')} checked={fast} disabled={blocked} onChange={value=>void setOptions({fast_archive:value})}/>

@@ -92,6 +92,29 @@ impl Database {
         }
         Ok(map)
     }
+    /// 已保存身份的组织 UUID（仅原生匹配用量样本使用，不随摘要送 UI）。
+    pub(super) fn summary_orgs(&self) -> Result<std::collections::BTreeMap<String, String>, String> {
+        let mut query = self
+            .connection
+            .prepare("SELECT id,summary FROM identity_summaries")
+            .map_err(error)?;
+        let rows = query
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(error)?;
+        let mut map = std::collections::BTreeMap::new();
+        for row in rows {
+            let (id, raw) = row.map_err(error)?;
+            if let Some(org) = serde_json::from_str::<super::profile::SavedSummary>(&raw)
+                .ok()
+                .and_then(|summary| summary.org().map(str::to_string))
+            {
+                map.insert(id, org);
+            }
+        }
+        Ok(map)
+    }
     pub(super) fn set_summary(
         &self,
         id: &str,

@@ -759,3 +759,22 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 @keyframes ccd-ping { 0%,60%,100% { box-shadow:0 0 0 0 #5dcaa500; } 10% { box-shadow:0 0 0 0 #5dcaa577; } 40% { box-shadow:0 0 0 7px #5dcaa500; } }
 @keyframes ccd-drift { from { background-position:0 0,0 0; } to { background-position:0 240px,240px 0; } }
 @media(max-width:560px) { .ccd-keys,.slot-tags { display:none; } .slot-confirm-body { padding-left:18px; } }
+
+/* ----- 额度行：桌面 App 本地用量样本 ----- */
+.slot-usage { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; margin-top:3px; font-size:11px; color:var(--ccd-dim); }
+.usage-item { display:inline-flex; align-items:center; gap:5px; }
+.usage-item i { position:relative; width:46px; height:4px; border-radius:2px; background:#2c3438; overflow:hidden; }
+.usage-item i b { position:absolute; inset:0 auto 0 0; border-radius:2px; background:var(--ccd-accent); }
+.usage-item.high i b { background:var(--ccd-warn); }
+.usage-item.full i b { background:var(--ccd-danger); }
+.usage-item code { font:11px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ccd-text); }
+.usage-item.high code { color:var(--ccd-warn); }
+.usage-item.full code { color:var(--ccd-danger); }
+.slot-usage em { font-style:normal; color:var(--ccd-faint); }
+/* ----- 窄窗口：确认面板改为单列，减少左缩进 ----- */
+@media (max-width:560px) {
+  .slot-confirm-body { padding:2px 16px 14px 18px; }
+  .slot-confirm-grid { grid-template-columns:minmax(0,1fr); gap:3px 0; }
+  .slot-confirm-grid > span,.slot-confirm-grid > label { margin-top:6px; }
+  .slot-tags { max-width:110px; }
+}
