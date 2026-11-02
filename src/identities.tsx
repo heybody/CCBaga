@@ -309,6 +309,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const drawerTitle:Record<Drawer,string>={settings:t('设置'),residue:t('Claude 文件残留'),keep:t('工作区保留'),help:t('使用说明')};
  return <MotionConfig reducedMotion={motionSetting.active?'never':'always'}>
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
+  <div className="ccd-titlebar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}><strong>Claude Code Desktop Switch</strong></div>
   <header className="ccd-bar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}>
    <div className="ccd-brand"><strong>Claude Code Desktop Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
    <div className="ccd-tools">
