@@ -75,11 +75,12 @@ try{
  assert.equal(await page.locator('.slot-confirm').count(),1);assert.match(await current.getAttribute('class')??'',/expanded/);
  assert.match(await confirmPanel.innerText(),/强制结束 Claude Desktop 和 Claude Code/);
  assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),false);
+ assert.equal(await consent().isChecked(),true);
+ assert.equal(await confirmPanel.getByRole('button',{name:'取消',exact:true}).evaluate(node=>node===document.activeElement),true);
  await consent().uncheck();
  assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),true);
  await consent().check();
  assert.equal(await consent().isChecked(),true);
- assert.equal(await confirmPanel.getByRole('button',{name:'取消',exact:true}).evaluate(node=>node===document.activeElement),true);
  await page.keyboard.press('Escape');await confirmPanel.waitFor({state:'detached'});
  assert.equal(await fixtureCommands('identities_stop'),0);
  await current.getByRole('button',{name:/^更多操作/}).click();
