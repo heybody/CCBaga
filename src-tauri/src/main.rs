@@ -112,9 +112,15 @@ fn main() {
                 app.handle(),
                 &ui_language::ui_language_read(app.handle().clone()),
             )?;
-            TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
+            // macOS 菜单栏用单色模板图标，由系统按明暗着色；其他平台沿用应用图标。
+            #[cfg(target_os = "macos")]
+            let tray = TrayIconBuilder::with_id("main")
+                .icon(tauri::include_image!("icons/tray.png"))
+                .icon_as_template(true);
+            #[cfg(not(target_os = "macos"))]
+            let tray = TrayIconBuilder::with_id("main")
+                .icon(app.default_window_icon().unwrap().clone());
+            tray.menu(&menu)
                 .tooltip("CC")
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show(app),
