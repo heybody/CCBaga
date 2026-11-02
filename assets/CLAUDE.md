@@ -5,5 +5,5 @@ cleaner-logo.jpg: 1024 像素橙底奶白清理员，A 应用、侧栏品牌标�
 browser-logo.jpg: 1024 像素橙底奶白浏览器图形，B 应用图标的唯一源图。
 dmg-background.png: 800×500、128 色的极客像素安装盘背景；留出双应用与 Applications 图标位置，箭头表达一次拖入两个应用。
 ai-icons/ - 网络页五项 LobeHub AI 静态图标与固定来源许可；见其 CLAUDE.md。
-ccd-switch-icon.svg / .png: CCD Switch 应用图标源（深色底上一枚打开的绿色开关），PNG 为 1024 渲染件，供 make-icons.sh 生成宿主图标；浏览器 B 图标不变。
+ccd-switch-icon.svg / .png: CCD Switch 应用图标源（深色底、浅色 C 字弧与缺口处绿色开关点），PNG 为 1024 渲染件，供 make-icons.sh 生成宿主图标；浏览器 B 图标不变。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

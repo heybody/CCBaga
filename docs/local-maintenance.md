@@ -130,3 +130,5 @@ local.10 同时按用户要求加入应用内更新：启动及每六小时检�
 深色换皮第三轮：应用图标简化为深色底绿色开关；套餐改为名称旁彩色标签（Pro 蓝、Max 金、Team/Enterprise 紫）；原生层在凭据元数据缺套餐时（macOS 钥匙串不读）改用 .claude.json oauthAccount 的 organizationType / organizationRateLimitTier 推断，仅限已知值，不读令牌；已暂存身份的摘要要等下次保存才会补上套餐。初始窗口 460×500、最小 400×400。
 
 菜单栏图标：macOS 托盘改用 src-tauri/icons/tray.png 单色模板图（线框开关），由系统着色，不再显示彩色应用图标；Windows/Linux 托盘不变。
+
+图标定稿为 C 字弧加绿色开关点（应用与菜单栏模板图同形）。菜单栏快捷切换：identities.tsx 每次状态变化把身份名称列表推给 tray_identities_set；菜单点身份时显示窗口并经 tray-switch 事件打开该身份的行内确认，仍需逐次勾选结束进程，界面忙或有恢复任务时忽略。

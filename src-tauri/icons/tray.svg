@@ -1,5 +1,2 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
-  <!-- macOS 菜单栏模板图标源：线框开关 + 实心滑钮，纯黑透明底，由系统按菜单栏明暗着色 -->
-  <rect x="3" y="12" width="38" height="20" rx="10" fill="none" stroke="#000" stroke-width="3.2"/>
-  <circle cx="31" cy="22" r="6" fill="#000"/>
-</svg>
+  <!-- macOS 菜单栏模板图标源：C 字弧 + 实心点，纯黑透明底，由系统按菜单栏明暗着色 --><path d="M30 13 A12 12 0 1 0 30 31" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round"/><circle cx="32" cy="22" r="3.6" fill="#000"/></svg>

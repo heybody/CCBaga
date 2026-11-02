@@ -45,35 +45,8 @@ pub fn ui_language_write(app: tauri::AppHandle, language: String) -> Result<(), 
     }
     *current = language.clone();
     drop(current);
-    if let (Some(tray), Ok(menu)) = (app.tray_by_id("main"), menu(&app, &language)) {
-        let _ = tray.set_menu(Some(menu));
-    }
+    crate::tray::refresh(&app);
     Ok(())
-}
-pub fn menu(
-    app: &tauri::AppHandle,
-    language: &str,
-) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{Menu, MenuItem};
-    let open = MenuItem::with_id(
-        app,
-        "open",
-        if language == "en" {
-            "Open CCD Switch"
-        } else {
-            "打开 CCD Switch"
-        },
-        true,
-        None::<&str>,
-    )?;
-    let quit = MenuItem::with_id(
-        app,
-        "quit",
-        if language == "en" { "Quit" } else { "退出" },
-        true,
-        None::<&str>,
-    )?;
-    Menu::with_items(app, &[&open, &quit])
 }
 #[cfg(test)]
 mod tests {

@@ -54,13 +54,14 @@ const fixture={commands,state,residue,transfer,browser:browserState,browserBusy:
 };
 Object.assign(window,{identityFixture:fixture});
 mockIPC((command,args:any)=>{
- if(!['identities_read','claude_cli_read','ui_language_read','plugin:app|version','local_update_check'].includes(command))commands.push({command,args});
+ if(!['identities_read','claude_cli_read','ui_language_read','plugin:app|version','local_update_check','tray_identities_set'].includes(command))commands.push({command,args});
  if(deferred.delete(command))return new Promise((resolve,reject)=>pending.push({command,args,resolve,reject,index:0}));
  return execute(command,args);
 });
 function execute(command:string,args:any){
  if(command==='plugin:event|listen')return 1;
  if(command==='plugin:event|unlisten')return;
+ if(command==='tray_identities_set')return null;
  if(fail===command){fail='';throw Error('fixture operation failed');}
  if(browserMode&&command==='browser_read')return structuredClone(browserState);
  if(browserMode&&command==='browser_default_read')return {is_default:true,http:'fixture',https:'fixture',installed:true,app:'CCBaga-B'};

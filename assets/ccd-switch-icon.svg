@@ -1,10 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- CCD Switch 应用图标源：深色底上一枚打开的绿色开关；由 scripts/make-icons.sh 渲染并套平台圆角 -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#252c30"/><stop offset="1" stop-color="#101416"/></linearGradient>
-    <linearGradient id="on" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6fd6b1"/><stop offset="1" stop-color="#2fae84"/></linearGradient>
-  </defs>
-  <rect width="1024" height="1024" fill="url(#bg)"/>
-  <rect x="172" y="372" width="680" height="280" rx="140" fill="url(#on)"/>
-  <circle cx="712" cy="512" r="108" fill="#f4fbf8"/>
+  <!-- CCD Switch 应用图标源：深色底、浅色 C 字弧与缺口处绿色开关点；由 scripts/make-icons.sh 渲染并套平台圆角 --><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262d31"/><stop offset="1" stop-color="#0f1315"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#74dab5"/><stop offset="1" stop-color="#28a77d"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#bg)"/>
+<path d="M690 330 A 260 260 0 1 0 690 694" fill="none" stroke="#e8edef" stroke-width="84" stroke-linecap="round"/>
+<circle cx="712" cy="512" r="74" fill="url(#g)"/>
 </svg>

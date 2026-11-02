@@ -18,6 +18,7 @@ mod local_update;
 mod progress;
 mod regions;
 mod system;
+mod tray;
 mod ui_language;
 #[cfg(test)]
 mod updater_tests;
@@ -108,7 +109,8 @@ fn main() {
             browser::open_urls(app.handle().clone(), std::env::args().collect());
             #[cfg(target_os = "windows")]
             browser::open_urls(app.handle().clone(), std::env::args().collect());
-            let menu = ui_language::menu(
+            app.manage(tray::TrayIdentities::default());
+            let menu = tray::menu(
                 app.handle(),
                 &ui_language::ui_language_read(app.handle().clone()),
             )?;
@@ -125,7 +127,11 @@ fn main() {
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show(app),
                     "quit" => app.exit(0),
-                    _ => {}
+                    id => {
+                        if let Some(target) = id.strip_prefix(tray::SWITCH_PREFIX) {
+                            tray::on_switch(app, target);
+                        }
+                    }
                 })
                 .build(app)?;
             startup_trace("host ready");
@@ -140,6 +146,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             ui_language::ui_language_read,
             ui_language::ui_language_write,
+            tray::tray_identities_set,
             runtime_platform,
             local_release_open,
             local_update::local_update_check,

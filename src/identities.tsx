@@ -9,6 +9,7 @@ import {Button,Checkbox,Input} from 'cromma-ui';
 import {Refresh,Settings01 as Settings,EraserDefault,FolderDefault} from 'cromma-ui/pika';
 import {AnimatePresence,MotionConfig,motion} from 'motion/react';
 import {invoke} from '@tauri-apps/api/core';
+import {listen} from '@tauri-apps/api/event';
 import {useI18n} from './i18n';
 import {AppDialog} from './dialog';
 import {ClaudeStopConsent} from './claude-stop-consent';
@@ -76,6 +77,27 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  ];
  const isActive=(slot:Slot)=>slot.kind==='current'||(slot.kind==='empty'&&current?.present===false);
  useEffect(()=>{void read();},[]);
+ // ----- 菜单栏快捷切换：只同步名称列表；点选后在窗口内打开同一行内确认，结束进程仍需逐次勾选 -----
+ const trayPick=useRef<(id:string)=>void>(()=>{});
+ trayPick.current=id=>{
+  if(rowBlocked)return;
+  const target:Target|undefined=id==='empty'?(current?.present===false?undefined:'empty'):saved.find(row=>row.id===id);
+  if(target)choose(target);
+ };
+ useEffect(()=>{
+  if(!state)return;
+  const entries=[
+   ...(current?.present?[{id:active?.id||'current',name:currentName,active:true}]:[]),
+   ...saved.map(row=>({id:row.id,name:row.name,active:false})),
+   {id:'empty',name:t('空身份'),active:current?.present===false},
+  ];
+  void invoke('tray_identities_set',{entries}).catch(()=>{});
+ },[state,currentName]);
+ useEffect(()=>{
+  let stop:(()=>void)|undefined,gone=false;
+  void listen<string>('tray-switch',event=>trayPick.current(event.payload)).then(off=>{if(gone)off();else stop=off;}).catch(()=>{});
+  return()=>{gone=true;stop?.();};
+ },[]);
  useEffect(()=>{
   const deadlines=[state?.current,...Object.values(state?.summaries??{})].map(item=>item?.expires_at).filter((expiry):expiry is number=>typeof expiry==='number'&&Number.isSafeInteger(expiry)&&expiry>now);
   if(!deadlines.length)return;
