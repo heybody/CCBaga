@@ -89,6 +89,14 @@ fn expected(bytes:&[u8],filename:&str)->Result<String,String> {
     let hash=hashes.next().ok_or("未找到安装包校验值。")?;
     if hashes.next().is_some(){return Err("安装包校验条目重复。".into());} Ok(hash)
 }
+fn verify_ready(ready:&Ready)->Result<(),String> {
+    // parents 只接受目录，不能把已经存在的安装包文件本身传进去。
+    private::parents(ready.path.parent().ok_or("更新状态不可用。")?)?;
+    private::safe(&ready.path)?;
+    let bytes=std::fs::read(&ready.path).map_err(|e|e.to_string())?;
+    if bytes.len()>LIMIT || sha(&bytes)!=ready.hash {return Err("安装包校验失败；未安装。".into());}
+    Ok(())
+}
 #[tauri::command]
 pub async fn local_update_check(app:tauri::AppHandle)->Result<Info,String> {Ok(latest(&app.package_info().version.to_string()).await?.info)}
 #[tauri::command]
@@ -127,9 +135,7 @@ pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),Stri
     let result=(|| {
         let state=app.state::<Updates>();let ready=state.0.lock().map_err(|_|"更新状态不可用。")?;
         let ready=ready.as_ref().ok_or("请先下载并校验更新包。")?;
-        private::parents(&ready.path)?;private::safe(&ready.path)?;
-        let bytes=std::fs::read(&ready.path).map_err(|e|e.to_string())?;
-        if bytes.len()>LIMIT || sha(&bytes)!=ready.hash {return Err("安装包校验失败；未安装。".into());}
+        verify_ready(ready)?;
         // NSIS passive 模式自动完成安装；/R 完成后重开应用，/UPDATE 保留更新语义。
         std::process::Command::new(&ready.path).args(["/P","/R","/UPDATE"]).spawn().map_err(|e|e.to_string())?;
         Ok(())
@@ -140,6 +146,16 @@ pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),Stri
 #[cfg(test)]
 mod tests {
  use super::*;
+ #[test] fn verified_staged_installer_accepts_regular_file_and_rejects_tampering(){
+  let root=std::env::temp_dir().join(format!("ccd-update-{}",crate::identities::new_id().unwrap()));
+  private::directory(&root).unwrap();let path=root.join("setup.exe");
+  private::write(&path,b"MZ synthetic installer").unwrap();
+  let ready=Ready{path:path.clone(),hash:sha(b"MZ synthetic installer")};
+  verify_ready(&ready).unwrap();
+  private::write(&path,b"modified").unwrap();assert!(verify_ready(&ready).is_err());
+  std::fs::remove_file(&path).unwrap();assert!(verify_ready(&ready).is_err());
+  std::fs::remove_dir(&root).unwrap();
+ }
  #[test] fn download_reports_received_bytes_and_handles_unknown_length_and_limit(){
   use std::{io::{Read,Write},net::TcpListener};
   fn response(headers:&str,body:&[u8])->(String,std::thread::JoinHandle<()>) {
