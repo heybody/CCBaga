@@ -34,3 +34,5 @@ Windows local.8 回归：新 Claude-Data 登录字段/Cookie 与旧路径共存�
 local.10：identities_stop 缺失 confirmed 或不为 true 时在任务锁/原生结束进程前直接拒绝，不沿用旧版无确认调用。
 
 local.12：store.rs 在清除身份之前的 park 部分失败时逆序回填已移动缓存，成功回填才解除事务；Windows 目录占用回归验证无悬挂 recovery、登录/缓存不变、解除占用后可继续往返。
+
+local.14：Windows Logs/logs 仅叶节点大小写兼容，junction 和父路径重定向仍拒绝；恢复根目录备份不要求既有 HOME 属于本人，不改其 ACL/所有者。optimization_tests.rs 覆盖快/慢往返及 SYSTEM 所有 HOME。

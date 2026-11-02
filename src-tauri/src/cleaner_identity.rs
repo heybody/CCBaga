@@ -1,5 +1,5 @@
 // [INPUT]: Cleaner 白名单、共享 Code 登录键常量、完整目录快照、用户保留策略与 JSON 配置。
-// [OUTPUT]: Desktop OAuth缓存/账号标识按字段暂存与恢复；受限身份目标、独立于当前磁盘发现的根目录备份许可、窄配置提取/清空/恢复、保留策略与桌面身份元数据检测、进程结果和瞬态锁分类；不自动删除锁。
+// [OUTPUT]: Desktop OAuth缓存/账号标识按字段暂存与恢复；受限身份目标、Windows 普通叶节点大小写兼容、独立于当前磁盘发现的根目录备份许可、窄配置提取/清空/恢复、保留策略与桌面身份元数据检测、进程结果和瞬态锁分类；不自动删除锁。
 // [POS]: 身份保险库复用原有路径边界；不扫描项目源码、Shell 或系统代理配置。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -142,6 +142,19 @@ fn definitions(root: &Path, policy: &Policy) -> Vec<Source> {
     result.dedup_by(|a, b| a.path == b.path);
     result
 }
+fn canonical_source(path: &Path) -> bool {
+    let Ok(actual) = canonicalize(path) else { return false };
+    if actual == path { return true; }
+    // Windows 会将普通 logs 解析成实际的 Logs；只接受叶节点的 ASCII 大小写差异。
+    // 父路径仍须逐字相同，不能借此放行 junction、路径重定向或其他目录别名。
+    #[cfg(windows)]
+    if actual.parent() == path.parent() {
+        return actual.file_name().and_then(|n| n.to_str())
+            .zip(path.file_name().and_then(|n| n.to_str()))
+            .is_some_and(|(a, b)| a.eq_ignore_ascii_case(b));
+    }
+    false
+}
 pub(crate) fn sources(root: &Path, policy: &Policy) -> Result<Vec<Source>, String> {
     let mut result = Vec::new();
     for mut source in definitions(root, policy) {
@@ -150,17 +163,7 @@ pub(crate) fn sources(root: &Path, policy: &Policy) -> Result<Vec<Source>, Strin
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(_) => return Err("身份数据无法完整读取；未修改任何数据。".into()),
         };
-        #[cfg(test)]
-        if !linked(&meta) {
-            assert_eq!(
-                canonicalize(&source.path).ok().as_deref(),
-                Some(source.path.as_path()),
-                "fixture source must be canonical"
-            );
-        }
-        if linked(&meta)
-            || canonicalize(&source.path).ok().as_deref() != Some(source.path.as_path())
-        {
+        if linked(&meta) || !canonical_source(&source.path) {
             return Err("身份路径包含链接或特殊文件。".into());
         }
         crate::identities::private::safe(&source.path)?;

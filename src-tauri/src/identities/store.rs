@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 目录、用户策略、白名单源、已验收归档代次、认证加密与平台凭据桥。
-// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
+// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、恢复文件不要求已有父目录属于本人、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
 // [POS]: 身份的文件事务；SQLite 与文件系统由恢复日志协调，不能假装是同一原子事务。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -324,7 +324,12 @@ impl Store {
                         }
                     })?;
                 } else {
-                    private::directory(source.path.parent().unwrap())?;
+                    let parent = source.path.parent().unwrap();
+                    // 已有父目录只校验路径边界（上方 parents），不将其当作身份文件。
+                    // Windows 用户 HOME 可由 SYSTEM 所有；不改父目录所有者或 ACL。
+                    if !parent.exists() {
+                        private::directory(parent)?;
+                    }
                     let mut output = private::create(&source.path)?;
                     io::copy(&mut fs::File::open(data).map_err(problem)?, &mut output)
                         .map_err(problem)?;

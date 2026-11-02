@@ -1,5 +1,5 @@
 // [INPUT]: 虚构 UUID/组织/凭据、隔离文件系统和归档格式。
-// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、Windows 缓存占用时部分挪动回填、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
+// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、Windows 普通日志大小写与父目录边界、缓存占用时部分挪动回填、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
 // [POS]: 账号匹配与不可变归档代次的离线证明，不读取真实用户数据。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -1091,4 +1091,84 @@ fn new_windows_desktop_layout_switches_login_and_rolls_back_without_touching_cow
     assert_eq!(read()["oauth:tokenCacheV2"], "b");
     assert_eq!(fs::read(f.home.join(&cookies)).unwrap(), b"b-cookie");
     for name in preserved { assert_eq!(fs::read(f.home.join(root).join(name)).unwrap(), b"keep"); }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_native_host_log_case_round_trips_without_weakening_path_boundaries() {
+    for fast in [false, true] {
+        let f = Fixture::new();
+        let r = Reporter::channel(None);
+        let p = Policy::default();
+        let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+        s.db.set_flag("fast_archive", fast).unwrap();
+        f.login("A", "one", "a-token");
+        f.write(".claude.json.backup", b"root-backup");
+        s.switch("empty", "A", &p, &r).unwrap();
+        let a = s.records()[0].id.clone();
+        // 模拟 Native Host 在空身份期间新建大写 Logs，白名单仍是小写 logs。
+        f.write("AppData/Local/Claude/Logs/chrome-native-host.log", b"native-log");
+        let expected = f.home.join("AppData/Local/Claude/logs");
+        assert_ne!(canonicalize(&expected).unwrap(), expected);
+        s.switch(&a, "empty logs", &p, &r).unwrap();
+        assert_eq!(f.token(), "a-token");
+        assert_eq!(fs::read(f.home.join(".claude.json.backup")).unwrap(), b"root-backup");
+        assert!(s.db.get("recovery").unwrap().is_none());
+        // 切回刚保存的日志身份，再返回 A，内容不能被大小写修复丢弃。
+        let logs = s.records().into_iter().find(|row| row.id != a).unwrap().id;
+        s.switch(&logs, "A", &p, &r).unwrap();
+        assert_eq!(fs::read(expected.join("chrome-native-host.log")).unwrap(), b"native-log");
+        s.switch(&a, "logs", &p, &r).unwrap();
+        assert_eq!(f.token(), "a-token");
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_log_junction_and_redirected_parent_are_refused_without_changes() {
+    for parent in [false, true] {
+        let f = Fixture::new();
+        let outside = f.root.join("outside");
+        private::directory(&outside).unwrap();
+        private::write(&outside.join("keep"), b"untouched").unwrap();
+        let link = f.home.join(if parent { "AppData/Local/Claude" } else { "AppData/Local/Claude/logs" });
+        private::directory(link.parent().unwrap()).unwrap();
+        if parent { private::directory(&outside.join("logs")).unwrap(); }
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"]).arg(&link).arg(&outside).output().unwrap();
+        assert!(status.status.success());
+        let result = crate::cleaner::identity::sources(&f.home, &Policy::default());
+        // 先移除 junction 本身，不遍历它，夹具清理只处理普通目录。
+        fs::remove_dir(&link).unwrap();
+        assert!(result.is_err());
+        assert_eq!(fs::read(outside.join("keep")).unwrap(), b"untouched");
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_root_backup_restores_under_system_owned_home_without_changing_acl() {
+    let f = Fixture::new();
+    let p = Policy::default();
+    let r = Reporter::channel(None);
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    f.login("A", "one", "a-token");
+    f.write(".claude.json.backup", b"backup-under-shared-home");
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    // 只对隔离夹具赋予 SYSTEM 所有者；普通非管理员开发环境允许跳过此特权样本。
+    let changed = std::process::Command::new("icacls").arg(&f.home)
+        .args(["/setowner", "*S-1-5-18"]).output().unwrap();
+    if !changed.status.success() {
+        assert!(std::env::var_os("CI").is_none(), "CI must exercise SYSTEM-owned HOME");
+        eprintln!("SYSTEM owner fixture requires an elevated test environment");
+        return;
+    }
+    assert!(!crate::windows::owned(&f.home));
+    assert!(private::directory(&f.home).is_err());
+    s.switch(&a, "empty", &p, &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    assert_eq!(fs::read(f.home.join(".claude.json.backup")).unwrap(), b"backup-under-shared-home");
+    assert!(!crate::windows::owned(&f.home));
+    assert!(s.db.get("recovery").unwrap().is_none());
 }

@@ -1,6 +1,8 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.13`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.14`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+
+local.14（2026-11-03）：修复 Windows Native Host 创建 `Logs` 与白名单 `logs` 大小写不同被误报链接的问题，仅允许末尾组件 ASCII 大小写差异，父路径重定向及 junction 仍拒绝。恢复根目录备份文件时，已有父目录只做路径边界检查，不要求 SYSTEM 所有的 HOME 属于当前用户，不修改父目录所有者或 ACL；身份文件仍严格核验所有权。新增真实大小写、快/慢模式往返、junction/父目录重定向拒绝和 SYSTEM 所有 HOME 的隔离回归。
 
 local.13 图标定稿（2026-11-02）：按用户确认采用透明底、满幅粗线 C 字弧与圆点，应用 PNG/ICO/ICNS 共用矢量源；macOS 托盘为单色 template，Windows 托盘独立 32px，读取系统栏 SystemUsesLightTheme，明暗变化时更新字弧颜色，不依赖窗口主题。生成命令 `python scripts/make-ccd-icons.py`。Windows 与 macOS CI 改为独立构建；macOS 改用 Intel runner 跑原生与系统 Chrome 隔离 UI 回归，再交叉构建 arm64 应用，不把 Intel 测试描述为 arm64 实机验收；标签发布等两平台附件齐备再由草稿公开，避免 arm64 runner 容量不足阻塞 Windows 验证和出现半套 Release。安装和原生验证结果以维护仓库记录为准。
 
