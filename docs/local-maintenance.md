@@ -1,6 +1,6 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.10`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.11`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。
@@ -147,3 +147,9 @@ macOS 标题栏修订：红绿灯一行只放标题（.ccd-titlebar），运行�
 macOS 运行状态对齐：第二行左侧“Claude 运行中”的圆点对准列表行首圆点/编号列（22px 列），文字对准身份名称列；未运行为灰色空心圆。
 
 当前身份行的行首改为绿色高亮编号，不再用圆点，避免与运行状态圆点重复。
+
+按用户要求移除使用说明（help.tsx 与设置抽屉入口）；macOS 抽屉标题行左让红绿灯。
+
+## 2026-11-02 local.11 深色紧凑界面发布
+
+汇总 local.10 之后的界面改动（深色紧凑切换器、C 字图标与菜单栏快捷切换、本地额度、两行身份行、底部确认弹层、红绿灯行标题），按用户要求移除使用说明，macOS 抽屉标题让出红绿灯；发布 Release 供应用内更新检测。

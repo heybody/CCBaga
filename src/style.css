@@ -824,3 +824,5 @@ html.mac.ccd-dark .ccd-running::before { content:''; justify-self:center; width:
 html.mac.ccd-dark .ccd-running.on::before { border:0; background:var(--ccd-accent); box-shadow:0 0 0 3px #5dcaa533; }
 /* 当前身份行不再用圆点（与标题栏运行状态圆点重复），改为高亮编号 */
 .slot-index.live { border:1px solid #5dcaa580; background:#5dcaa51f; color:var(--ccd-accent); font-weight:600; }
+/* macOS 抽屉占满窗口高度：标题行与红绿灯同高，左侧让出红绿灯，避免“设置”等标题被遮住 */
+html.mac.ccd-dark .drawer-head { min-height:32px; padding:4px 12px 8px 78px; }

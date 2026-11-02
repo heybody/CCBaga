@@ -6,7 +6,7 @@
  */
 import {useEffect,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
 import {Button,Checkbox,Input} from 'cromma-ui';
-import {Refresh,Settings01 as Settings,EraserDefault,FolderDefault} from 'cromma-ui/pika';
+import {Refresh,Settings01 as Settings,EraserDefault} from 'cromma-ui/pika';
 import {AnimatePresence,MotionConfig,motion} from 'motion/react';
 import {invoke} from '@tauri-apps/api/core';
 import {getCurrentWindow} from '@tauri-apps/api/window';
@@ -20,11 +20,10 @@ import {ClaudeCliPanel} from './claude-cli-panel';
 import {ClaudeResiduePanel} from './claude-residue-panel';
 import {AppUpdate,type UpdateInfo} from './app-update';
 import {LanguageSwitch} from './language-switch';
-import {HelpPanel} from './help';
 import {setMotionEnabled,useMotionSetting} from './motion-preference';
 import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,type Identity,type IdentityState,type PlanUsage} from './identity-model';
 type Target=Identity|'empty'|'recovery'|'save';
-type Drawer='settings'|'residue'|'keep'|'help';
+type Drawer='settings'|'residue'|'keep';
 type Slot={key:string;kind:'current'|'saved'|'empty';record?:Identity;target?:Target};
 /** 个人账号默认组织名「<邮箱>'s Organization」只是重复邮箱，不再单独显示。 */
 function organization(meta:{email?:string|null;organization?:string|null}|null|undefined) {
@@ -212,7 +211,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const target=event.target as Element;
   if(target.closest('.app-dialog-position'))return;
   if(event.key==='Escape'){
-   if(menu)setMenu(null);else if(drawer)setDrawer(drawer==='help'?'settings':null);else if(review&&!busy)setReview(null);else return;
+   if(menu)setMenu(null);else if(drawer)setDrawer(null);else if(review&&!busy)setReview(null);else return;
    event.preventDefault();return;
   }
   if(drawer||target.closest('input, textarea'))return;
@@ -306,7 +305,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    </div>
   </motion.li>;
  }
- const drawerTitle:Record<Drawer,string>={settings:t('设置'),residue:t('Claude 文件残留'),keep:t('工作区保留'),help:t('使用说明')};
+ const drawerTitle:Record<Drawer,string>={settings:t('设置'),residue:t('Claude 文件残留'),keep:t('工作区保留')};
  return <MotionConfig reducedMotion={motionSetting.active?'never':'always'}>
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <div className="ccd-titlebar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}><strong>Claude Code Desktop Switch</strong></div>
@@ -357,10 +356,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    </div>
    <div className="drawer-row"><span>{t('界面动效')}<small>{motionSetting.reduced?t('系统已开启「减弱动态」，动效暂停。'):t('列表入场、选中光带与切换扫描等效果。')}</small></span><Switch label={t('界面动效')} checked={motionSetting.enabled} onChange={setMotionEnabled}/></div>
    <div className="drawer-row"><span>{t('界面语言')}</span><LanguageSwitch/></div>
-   <div className="drawer-row"><span>{t('使用说明')}</span><Button size="small" variant="ghost" leftIcon={<FolderDefault size={15} aria-hidden/>} onClick={()=>setDrawer('help')}>{t('打开')}</Button></div>
    <ClaudeCliPanel blocked={locked||loading||!!state?.recovery} onBusy={setCliBusy}/>
   </SideDrawer>
-  <SideDrawer open={drawer==='help'} title={drawerTitle.help} onClose={()=>setDrawer('settings')}><HelpPanel/></SideDrawer>
   <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted||(deletion==='current'&&!stopAccepted)} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
    {deletion==='current'&&<ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>}<div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>
   </AppDialog>
