@@ -46,3 +46,5 @@ Linux 呈现边界：设备平台由原生快照提供；未知定位不显示�
 local.10：claude-stop-consent.tsx 统一提供强制结束与丢失未保存内容的醒目警告及每次独立勾选；身份/CLI/残留操作需明确授权，确认框默认焦点为取消。
 
 local.10 更新入口：app-update.tsx 启动及每六小时检查固定 fork 的完整 Release，应用内下载与 SHA-256 校验；独立确认后只关闭 CCD Switch 并打开 Windows 安装器，不操作 Claude 进程。
+
+深色切换器换皮（未发版）：main.tsx 仅拖动条 + IdentityPanel；identities.tsx 为插槽列表/行内确认/⋯ 菜单/侧滑抽屉（设置、残留、工作区保留、说明）/切回提示/键盘操作，不提供浏览器联动与导入导出入口；app-update.tsx 仅有新版本时显示标题栏提示，可由设置抽屉受控打开；motion-preference.ts 保存界面动效开关并服从系统减弱动态；style.css 末尾 html.ccd-dark 段为深色主题与动效。详见 docs/local-maintenance.md。

@@ -1,20 +1,25 @@
 /**
  * [INPUT]: 固定 fork 的原生更新检查/校验下载/确认安装接口、当前版本与身份事务锁。
- * [OUTPUT]: 启动与每六小时静默检测、手动重查、应用内下载和明确确认后启动 Windows 安装器。
+ * [OUTPUT]: 启动与每六小时静默检测、仅在有新版本时显示的标题栏提示、可由设置抽屉受控打开的更新窗、应用内下载和明确确认后启动 Windows 安装器。
  * [POS]: 定制版更新入口；只在用户确认时关闭 CCD Switch，不结束 Claude 进程。
  */
 import {invoke} from '@tauri-apps/api/core';
 import {getVersion} from '@tauri-apps/api/app';
 import {useEffect,useState} from 'react';
-import {Button,Checkbox,NavButton} from 'cromma-ui';
-import {Refresh} from 'cromma-ui/pika';
+import {Button,Checkbox} from 'cromma-ui';
 import {AppDialog} from './dialog';
 import {useI18n} from './i18n';
-type Info={current:string;latest:string;available:boolean;supported:boolean};
-export function AppUpdate({blocked}:{blocked:boolean}){
+export type UpdateInfo={current:string;latest:string;available:boolean;supported:boolean};
+type Info=UpdateInfo;
+export function AppUpdate({blocked,open:controlled,onOpenChange,onInfo}:{blocked:boolean;open?:boolean;onOpenChange?:(open:boolean)=>void;onInfo?:(info:Info|null,version:string)=>void}){
  const {t}=useI18n();
- const [open,setOpen]=useState(false),[version,setVersion]=useState(''),[info,setInfo]=useState<Info|null>(null);
+ const [local,setLocal]=useState(false),[version,setVersion]=useState(''),[info,setInfo]=useState<Info|null>(null);
+ const open=controlled??local;
+ const setOpen=(value:boolean)=>{setLocal(value);onOpenChange?.(value);};
+ useEffect(()=>{onInfo?.(info,version);},[info,version]);
  const [phase,setPhase]=useState<'check'|'download'|'install'|null>(null),[ready,setReady]=useState(false),[accepted,setAccepted]=useState(false),[error,setError]=useState('');
+ // ----- 受控打开时重置确认，避免沿用上一次勾选 -----
+ useEffect(()=>{if(open)setAccepted(false);},[open]);
  useEffect(()=>{
   let live=true;
   void getVersion().then(v=>{if(live)setVersion(v);}).catch(()=>{});
@@ -27,7 +32,7 @@ export function AppUpdate({blocked}:{blocked:boolean}){
  async function install(){if(!accepted||!ready||blocked)return;setPhase('install');setError('');try{await invoke('local_update_install',{confirmed:true});}catch(e){setError(String(e));setPhase(null);}}
  const busy=phase!==null;
  return <>
-  <NavButton className="workspace-nav update-nav" icon={<Refresh size={17} aria-hidden="true"/>} disabled={blocked} onClick={()=>{setAccepted(false);setOpen(true);}}>{info?.available?t('发现新版本 {v0}',{v0:info.latest}):t('定制版更新')}</NavButton>
+  {info?.available&&<button type="button" className="update-pill" disabled={blocked} onClick={()=>{setAccepted(false);setOpen(true);}}>{t('发现新版本 {v0}',{v0:info.latest})}</button>}
   <AppDialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}} title={t('定制版更新')} description={t('自动检测定制版更新；下载完成并由你确认后，才启动安装程序。')} footer={<>
    <Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setOpen(false)}>{t('取消')}</Button>
    <Button variant="secondary" disabled={busy||blocked} onClick={()=>void check()}>{t('检查更新')}</Button>

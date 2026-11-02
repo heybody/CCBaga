@@ -111,3 +111,16 @@ local.9 验证：代码 `ebec208` 的 [CI 41312737786](https://github.com/heybod
 - 仅修改代码和隔离测试，不操作用户桌面、安装软件或结束真实进程。
 
 local.10 同时按用户要求加入应用内更新：启动及每六小时检测固定 fork 的完整 Windows Release（API 每次最多 20 条，跳过草稿、预发布及附件未齐的版本），按数字比较 +local 构建号；应用内下载、核对 SHA-256、安装前再次核对暂存字节。明确确认后只关闭 CCD Switch 并打开 Windows 安装器，不结束 Claude。HTTP 使用系统默认网络；不强加代理。其他系统沿用维护安装流程。仍需用已安装版本完成一次人工更新验收。
+
+## 2026-11-01 深色切换器换皮（未发版）
+
+只换前端外观，原生命令、参数与确认语义不变：
+
+- 去掉侧栏与大标题，窗口默认 640×760（最小 520×560，macOS/Windows 配置）；整体为深色细网格主题（`html.ccd-dark`）。
+- 身份改为插槽列表：当前身份置顶高亮、空身份固定最后；点行在原地展开切换确认（名称、保留范围、进程列表、每次独立勾选结束进程）；⋯ 菜单承载更新备份 / 重命名（行内）/ 删除，永久删除仍是默认聚焦取消的 AlertDialog。
+- 切换成功后顶部提示可「切回」上一身份（含空身份），切回仍走完整确认。键盘：↑↓、Enter、1–9、Esc。
+- 底部「带入会话 / 快速模式」开关与「工作区保留」抽屉；标题栏右侧为刷新、文件残留抽屉、设置抽屉（更新、界面动效、语言、使用说明、Claude Code CLI）。有新版本时标题栏出现更新提示。
+- 按用户要求移除界面入口：浏览器联动标记/重开按钮、删除时的浏览器资料选项（固定传 `deleteBrowser:false`）、导入 / 导出。`identity-transfer.tsx` 与 `scripts/test-identity-transfer.ts` 保留但不再接入。
+- 新增「界面动效」开关（`src/motion-preference.ts`，localStorage，默认开）：列表浮现、选中光带滑动与扫光、呼吸光点、切换扫描线、更新提示脉冲、抽屉/提示弹簧；关闭或系统「减弱动态」时全部静止。
+
+验证：`tsc --noEmit`、`bun test`（24 项）通过；`CCBAGA_TEST_BROWSER=<本机 Chrome> node --experimental-strip-types scripts/test-identities-ui.ts` 中身份、更新、残留、操作进度、浏览器核验/清理、网络诊断用例全部通过，仅 `test-browser-profiles` 因本机未解包 `browser-runtime/Browser.app` 无法运行。尚未打包安装、未在真实 Tauri 窗口验收。

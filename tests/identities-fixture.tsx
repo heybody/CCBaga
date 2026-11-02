@@ -54,7 +54,7 @@ const fixture={commands,state,residue,transfer,browser:browserState,browserBusy:
 };
 Object.assign(window,{identityFixture:fixture});
 mockIPC((command,args:any)=>{
- if(!['identities_read','claude_cli_read'].includes(command))commands.push({command,args});
+ if(!['identities_read','claude_cli_read','ui_language_read','plugin:app|version','local_update_check'].includes(command))commands.push({command,args});
  if(deferred.delete(command))return new Promise((resolve,reject)=>pending.push({command,args,resolve,reject,index:0}));
  return execute(command,args);
 });
@@ -91,6 +91,10 @@ function execute(command:string,args:any){
   return {cleaned:selected.length,errors:[],completed:true} satisfies CleanResult;
  }
  if(command==='claude_cli_read')return {method:'',path:'',version:''};
+ if(command==='ui_language_read')return 'zh';
+ if(command==='ui_language_write')return null;
+ if(command==='plugin:app|version')return '0.2.50+local.10';
+ if(command==='local_update_check')return {current:'0.2.50+local.10',latest:'0.2.50+local.10',available:false,supported:true};
  if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.processes=[];return {running:false};}
  if(command==='identities_save'){
   const existing=state.records.find(row=>row.id===state.active);
