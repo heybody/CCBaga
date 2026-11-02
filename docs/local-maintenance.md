@@ -124,3 +124,5 @@ local.10 同时按用户要求加入应用内更新：启动及每六小时检�
 - 新增「界面动效」开关（`src/motion-preference.ts`，localStorage，默认开）：列表浮现、选中光带滑动与扫光、呼吸光点、切换扫描线、更新提示脉冲、抽屉/提示弹簧；关闭或系统「减弱动态」时全部静止。
 
 验证：`tsc --noEmit`、`bun test`（24 项）通过；`CCBAGA_TEST_BROWSER=<本机 Chrome> node --experimental-strip-types scripts/test-identities-ui.ts` 中身份、更新、残留、操作进度、浏览器核验/清理、网络诊断用例全部通过，仅 `test-browser-profiles` 因本机未解包 `browser-runtime/Browser.app` 无法运行。尚未打包安装、未在真实 Tauri 窗口验收。
+
+深色换皮第二轮：整体调亮对比度；运行状态并入标题栏、去掉快捷键提示行；个人默认组织名（<邮箱>'s Organization）与「状态未知」标签不再显示；空身份说明缩短；「带入会话」改称「带入未完成会话」。应用图标改为 assets/ccd-switch-icon.svg（深色身份插槽 + 切换箭头），重新生成 src-tauri/icons 的 png/icns/ico。

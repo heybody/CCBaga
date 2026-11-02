@@ -1,6 +1,6 @@
 #!/bin/sh
 # [INPUT]: assets/ 两张压缩品牌图、scripts/make-icon.swift 与 macOS iconutil。
-# [OUTPUT]: src-tauri/icons 下 CCBaga-A icon.png/icon.icns（橙底清理员 A），browser-runtime/icons 下 CCBaga-B icon.png/app.icns（橙底浏览器 B）。
+# [OUTPUT]: src-tauri/icons 下 CCD Switch icon.png/icon.icns（深色身份插槽，源为 assets/ccd-switch-icon.svg 渲染的 PNG），browser-runtime/icons 下 CCBaga-B icon.png/app.icns（橙底浏览器 B）。
 # [POS]: 两个应用图标的可重复生成入口；生成后由 brand-browser.sh 与 Tauri 打包使用。
 # [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 set -eu
@@ -19,6 +19,6 @@ make() {
   cp "$set_dir/icon_512x512.png" "$png"
 }
 mkdir -p "$root/browser-runtime/icons"
-make A "$root/assets/cleaner-logo.jpg" "$root/src-tauri/icons/icon.png" "$root/src-tauri/icons/icon.icns"
+make A "$root/assets/ccd-switch-icon.png" "$root/src-tauri/icons/icon.png" "$root/src-tauri/icons/icon.icns"
 make B "$root/assets/browser-logo.jpg" "$root/browser-runtime/icons/icon.png" "$root/browser-runtime/icons/app.icns"
 echo "图标已生成"

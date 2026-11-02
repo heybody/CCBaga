@@ -24,6 +24,11 @@ import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,type Ide
 type Target=Identity|'empty'|'recovery'|'save';
 type Drawer='settings'|'residue'|'keep'|'help';
 type Slot={key:string;kind:'current'|'saved'|'empty';record?:Identity;target?:Target};
+/** 个人账号默认组织名「<邮箱>'s Organization」只是重复邮箱，不再单独显示。 */
+function organization(meta:{email?:string|null;organization?:string|null}|null|undefined) {
+ const org=meta?.organization;
+ return org&&meta?.email&&org===`${meta.email}'s Organization`?null:org;
+}
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
  if(status==='refresh_available')return '可尝试续期';
@@ -211,8 +216,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const meta=slot.kind==='current'?current:summary;
   const status=meta?credentialStatus(meta,now):null;
   const title=slot.kind==='empty'?t('空身份'):slot.kind==='current'?currentName:slot.record!.name;
-  const email=slot.kind==='current'?(current?.email||t(currentAccountMessage(current))):slot.kind==='saved'?summary?.email:t('清空本地登录身份；保留选定工作区资料，不影响服务端记录。');
-  const detail=slot.kind==='current'?[current?.organization,t(active?'已备份':'未备份')]:slot.kind==='saved'?[summary?.organization,date(slot.record!.saved_at),formatBytes(slot.record!.bytes)]:[];
+  const email=slot.kind==='current'?(current?.email||t(currentAccountMessage(current))):slot.kind==='saved'?summary?.email:t('清空本地登录，保留所选工作区资料');
+  const detail=slot.kind==='current'?[organization(current),t(active?'已备份':'未备份')]:slot.kind==='saved'?[organization(summary),date(slot.record!.saved_at),formatBytes(slot.record!.bytes)]:[];
   const renaming=rename&&slot.record&&rename.id===slot.record.id;
   const expanded=sameTarget(review,slot.target);
   const menuItems:{label:string;run:()=>void;danger?:boolean}[]=slot.kind==='current'?[
@@ -243,7 +248,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       </span>
       <span className="slot-tags">
        {meta?.plan&&<span className="slot-tag">{meta.plan}</span>}
-       {status&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
+       {status&&status!=='unknown'&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
       </span>
       {!on&&<span className="slot-cta" aria-hidden="true">{expanded?t('收起'):t('切换 →')}</span>}
      </button>}
@@ -259,17 +264,13 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  return <MotionConfig reducedMotion={motionSetting.active?'never':'always'}>
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <header className="ccd-bar">
-   <div className="ccd-brand"><strong>CCD Switch</strong><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
+   <div className="ccd-brand"><strong>CCD Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status">{running}</span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>
     <button type="button" className="ccd-icon" title={t('设置')} aria-label={t('设置')} aria-pressed={drawer==='settings'} onClick={()=>setDrawer('settings')}><Settings size={17} aria-hidden/></button>
    </div>
   </header>
-  <div className="ccd-status">
-   <span>{t('点一下身份即可切换')}<span className="ccd-keys"> · {t('↑↓ 选择 · Enter 确认 · 1–9 直达')}</span></span>
-   <span className={`ccd-running${state?.running?' on':''}`} role="status">{running}</span>
-  </div>
   {error&&<p role="alert" className="ccd-alert">{t(error)}</p>}
   {state?.recovery&&<div className="ccd-recovery" role="alert">
    <div className="ccd-recovery-head"><strong>{t('有一次身份切换尚未完成')}</strong><Button size="small" variant="ink" disabled={locked||loading} onClick={()=>choose('recovery')}>{t('恢复原身份')}</Button></div>
@@ -281,7 +282,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   </div>
   <IdentityOperationProgress activity={activity.state}/>
   <footer className="ccd-foot">
-   <Toggle label={t('带入会话')} hint={t('仅影响切换：未归档会话留在工作区并带入新账号，目标账号原有会话一并挪入；保存或更新备份仍包含当前会话。')} checked={carry} disabled={blocked} onChange={value=>void setOptions({carry_sessions:value})}/>
+   <Toggle label={t('带入未完成会话')} hint={t('仅影响切换：未归档会话留在工作区并带入新账号，目标账号原有会话一并挪入；保存或更新备份仍包含当前会话。')} checked={carry} disabled={blocked} onChange={value=>void setOptions({carry_sessions:value})}/>
    <Toggle label={t('快速模式')} hint={t('切换时直接移动缓存等数据；保存或更新备份时使用快速压缩，仍加密并校验。')} checked={fast} disabled={blocked} onChange={value=>void setOptions({fast_archive:value})}/>
    <button type="button" className="ccd-keep" onClick={()=>setDrawer('keep')}>{t('工作区保留')} <b>{kept.length}/{policyRows.length}</b> ›</button>
   </footer>

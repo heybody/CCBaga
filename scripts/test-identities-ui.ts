@@ -45,7 +45,7 @@ try{
  // ----- 插槽列表：当前身份置顶高亮，暂存身份全部列出，空身份固定最后 -----
  assert.equal(await slots.count(),41);
  assert.equal(await slots.first().getAttribute('data-slot'),'current');assert.equal(await slots.last().getAttribute('data-slot'),'empty');
- assert.match(await slots.last().innerText(),/清空本地登录身份/);
+ assert.match(await slots.last().innerText(),/清空本地登录/);
  assert.equal(await page.locator('.slot.active').count(),1);
  assert.equal(await page.getByText('上次使用',{exact:true}).count(),0);
  assert.equal(await slots.filter({hasText:/^Identity 1\b/}).count(),0);checks++;
@@ -66,7 +66,7 @@ try{
  await dialog.getByRole('button',{name:'取消'}).click();
  assert.equal(await fixtureCommands('identities_delete'),0);checks++;
  // ----- 更新备份在当前行原地展开；未勾选结束进程时不能执行，取消不调用命令 -----
- await page.getByRole('switch',{name:'带入会话',exact:true}).click();
+ await page.getByRole('switch',{name:'带入未完成会话',exact:true}).click();
  await page.getByRole('switch',{name:'快速模式',exact:true}).click();
  await page.waitForFunction(()=>(window as any).identityFixture.state.options.carry_sessions&&(window as any).identityFixture.state.options.fast_archive);
  await current.getByRole('button',{name:/^更多操作/}).click();
@@ -92,7 +92,7 @@ try{
  assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.current.present),true);checks++;
  assert.equal(await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_save').args.policy.history),false);
  // ----- 工作区保留在抽屉里调整；空身份行原地确认并按所选策略切换 -----
- await page.getByRole('switch',{name:'带入会话',exact:true}).click();
+ await page.getByRole('switch',{name:'带入未完成会话',exact:true}).click();
  await page.waitForFunction(()=>!(window as any).identityFixture.state.options.carry_sessions);
  await page.locator('.ccd-keep').click();
  await page.getByRole('dialog',{name:'工作区保留'}).getByRole('checkbox',{name:'Skills 与命令'}).uncheck();
@@ -140,7 +140,7 @@ try{
  assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.current.present),true);checks++;
  // ----- 语言切换、失败保留现状与恢复未完成切换 -----
  await page.evaluate(()=>{(window as any).identityFixture.language('en');});
- await page.getByRole('button',{name:'Switch to Empty identity',exact:true}).waitFor();assert.match(await slots.last().innerText(),/local sign-in/);checks++;
+ await page.getByRole('button',{name:'Switch to Empty identity',exact:true}).waitFor();assert.match(await slots.last().innerText(),/Sign out locally/);checks++;
  await page.evaluate(()=>{(window as any).identityFixture.setFailure('identities_switch');});
  await page.getByRole('button',{name:'Switch to Empty identity',exact:true}).click();
  await consent().check();

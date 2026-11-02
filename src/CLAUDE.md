@@ -48,3 +48,5 @@ local.10：claude-stop-consent.tsx 统一提供强制结束与丢失未保存内
 local.10 更新入口：app-update.tsx 启动及每六小时检查固定 fork 的完整 Release，应用内下载与 SHA-256 校验；独立确认后只关闭 CCD Switch 并打开 Windows 安装器，不操作 Claude 进程。
 
 深色切换器换皮（未发版）：main.tsx 仅拖动条 + IdentityPanel；identities.tsx 为插槽列表/行内确认/⋯ 菜单/侧滑抽屉（设置、残留、工作区保留、说明）/切回提示/键盘操作，不提供浏览器联动与导入导出入口；app-update.tsx 仅有新版本时显示标题栏提示，可由设置抽屉受控打开；motion-preference.ts 保存界面动效开关并服从系统减弱动态；style.css 末尾 html.ccd-dark 段为深色主题与动效。详见 docs/local-maintenance.md。
+
+深色换皮第二轮：整体调亮对比度；运行状态并入标题栏、去掉快捷键提示行；个人默认组织名（<邮箱>'s Organization）与「状态未知」标签不再显示；空身份说明缩短；「带入会话」改称「带入未完成会话」。应用图标改为 assets/ccd-switch-icon.svg（深色身份插槽 + 切换箭头），重新生成 src-tauri/icons 的 png/icns/ico。
