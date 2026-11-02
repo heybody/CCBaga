@@ -147,7 +147,7 @@ pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),Stri
 mod tests {
  use super::*;
  #[test] fn verified_staged_installer_accepts_regular_file_and_rejects_tampering(){
-  let root=std::env::temp_dir().join(format!("ccd-update-{}",crate::identities::new_id().unwrap()));
+  let root=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("ccd-update-{}",crate::identities::new_id().unwrap()));
   private::directory(&root).unwrap();let path=root.join("setup.exe");
   private::write(&path,b"MZ synthetic installer").unwrap();
   let ready=Ready{path:path.clone(),hash:sha(b"MZ synthetic installer")};
