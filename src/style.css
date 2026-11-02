@@ -746,7 +746,7 @@ html.ccd-dark .claude-residue-risk.login,html.ccd-dark .claude-residue-risk.hist
 html.ccd-dark .app-dialog-overlay { background:#000000a0; }
 html.ccd-dark .cleanup-feedback.error { color:var(--ccd-danger); }
 /* ----- 动效开关：开启时的呼吸光点、切换扫描与列表浮现；关闭或减弱动态时全部静止 ----- */
-.ccd[data-motion=on] .slot.active .slot-dot { animation:ccd-breathe 2.4s ease-in-out infinite; }
+.ccd[data-motion=on] .slot.active .slot-index.live { animation:ccd-breathe 2.4s ease-in-out infinite; }
 .ccd[data-motion=on] .ccd-list-wrap.working::before { content:''; position:absolute; z-index:5; left:0; right:0; top:0; height:42px; background:linear-gradient(180deg,transparent,#5dcaa526 70%,#5dcaa5aa 100%); border-bottom:1px solid #5dcaa5; pointer-events:none; animation:ccd-scan 1.6s cubic-bezier(.45,0,.55,1) infinite; }
 .ccd[data-motion=on] .slot.active .slot-glow::after { content:''; position:absolute; inset:0; background:linear-gradient(100deg,transparent 30%,#5dcaa51a 50%,transparent 70%); background-size:250% 100%; animation:ccd-sheen 4.5s linear infinite; }
 .ccd[data-motion=on] .update-pill { animation:ccd-ping 2.8s ease-out infinite; }
@@ -822,3 +822,5 @@ html.mac.ccd-dark .ccd-bar .ccd-brand { gap:12px; }
 html.mac.ccd-dark .ccd-running { display:inline-grid; grid-template-columns:22px auto; align-items:center; column-gap:14px; font-size:12px; }
 html.mac.ccd-dark .ccd-running::before { content:''; justify-self:center; width:9px; height:9px; box-sizing:border-box; border-radius:50%; border:1.5px solid var(--ccd-faint); }
 html.mac.ccd-dark .ccd-running.on::before { border:0; background:var(--ccd-accent); box-shadow:0 0 0 3px #5dcaa533; }
+/* 当前身份行不再用圆点（与标题栏运行状态圆点重复），改为高亮编号 */
+.slot-index.live { border:1px solid #5dcaa580; background:#5dcaa51f; color:var(--ccd-accent); font-weight:600; }

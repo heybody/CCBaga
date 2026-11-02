@@ -288,7 +288,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
     :<button type="button" className="slot-main" disabled={!on&&rowBlocked} aria-disabled={on||undefined} aria-current={on?'true':undefined} aria-expanded={!on?expanded:undefined}
       aria-label={on?`${title} · ${t('当前使用')}`:`${t('切换到')} ${title}`}
       onClick={()=>{if(on||!slot.target)return;if(expanded)setReview(null);else choose(slot.target);}}>
-      <span className={`slot-index${on?' live':''}`} aria-hidden="true">{on?<i className="slot-dot"/>:index+1}</span>
+      <span className={`slot-index${on?' live':''}`} aria-hidden="true">{index+1}</span>
       <span className="slot-text">
        <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
        {(email||detail.some(Boolean))&&<span className="slot-sub">{email&&<span>{email}</span>}{detail.some(Boolean)&&<span className="slot-meta">{email?' · ':''}{detail.filter(Boolean).join(' · ')}</span>}</span>}

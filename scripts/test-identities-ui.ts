@@ -157,7 +157,7 @@ try{
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('switch',{name:'Interface motion',exact:true}).click();
  assert.equal(await page.locator('.ccd').getAttribute('data-motion'),'off');
- assert.equal(await page.locator('.slot.active .slot-dot').evaluate(node=>getComputedStyle(node).animationName),'none');
+ assert.equal(await page.locator('.slot.active .slot-index').evaluate(node=>getComputedStyle(node).animationName),'none');
  await page.getByRole('switch',{name:'Interface motion',exact:true}).click();
  assert.equal(await page.locator('.ccd').getAttribute('data-motion'),'on');
  await page.emulateMedia({reducedMotion:'reduce'});
