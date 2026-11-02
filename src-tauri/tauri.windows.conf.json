@@ -8,10 +8,10 @@
       {
         "label": "main",
         "title": "CCD Switch",
-        "width": 640,
-        "height": 760,
-        "minWidth": 520,
-        "minHeight": 560,
+        "width": 460,
+        "height": 500,
+        "minWidth": 400,
+        "minHeight": 400,
         "decorations": true
       }
     ]

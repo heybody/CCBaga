@@ -12,6 +12,21 @@ struct Account {
     email_address: Option<String>,
     organization_name: Option<String>,
     billing_type: Option<String>,
+    organization_type: Option<String>,
+    organization_rate_limit_tier: Option<String>,
+}
+impl Account {
+    /// 无凭据元数据时（如 macOS 钥匙串不读取）用 .claude.json 的组织类型/限速档位推断套餐，不涉及令牌。
+    fn plan_hint(&self) -> (Option<String>, Option<String>) {
+        let sub = match self.organization_type.as_deref().map(str::trim) {
+            Some("claude_pro") => Some("pro"),
+            Some("claude_max") => Some("max"),
+            Some("claude_team") => Some("team"),
+            Some("claude_enterprise") => Some("enterprise"),
+            _ => None,
+        };
+        (sub.map(str::to_string), self.organization_rate_limit_tier.clone())
+    }
 }
 #[derive(Default, Deserialize)]
 struct Config {
@@ -201,16 +216,24 @@ fn extract_settings_api_auth(value: &Value) -> bool {
 fn parse(bytes: &[u8]) -> Result<Current, serde_json::Error> {
     let config: Config = serde_json::from_slice(bytes)?;
     Ok(match config.account {
-        Some(account) => Current {
-            present: true,
-            desktop_present: false,
-            display_name: display(account.display_name, 80),
-            email: display(account.email_address, 254),
-            organization: display(account.organization_name, 120),
-            unavailable: false,
-            plan: format_plan(None, None, account.billing_type.as_deref()),
-            ..Current::default()
-        },
+        Some(account) => {
+            let (sub, tier) = account.plan_hint();
+            let plan = format_plan(
+                sub.as_deref(),
+                tier.as_deref(),
+                account.billing_type.as_deref(),
+            );
+            Current {
+                present: true,
+                desktop_present: false,
+                display_name: display(account.display_name, 80),
+                email: display(account.email_address, 254),
+                organization: display(account.organization_name, 120),
+                unavailable: false,
+                plan,
+                ..Current::default()
+            }
+        }
         None => Current {
             present: config.api_key.is_some(),
             ..Current::default()
@@ -220,6 +243,7 @@ fn parse(bytes: &[u8]) -> Result<Current, serde_json::Error> {
 pub fn read(home: &Path) -> Current {
     let path = home.join(".claude.json");
     let mut billing_type = None;
+    let mut hint = (None, None);
     let mut has_primary_api_key = false;
     let result = (|| {
         let meta = match fs::symlink_metadata(&path) {
@@ -242,7 +266,10 @@ pub fn read(home: &Path) -> Current {
             return Err(());
         }
         if let Ok(cfg) = serde_json::from_slice::<Config>(&bytes) {
-            billing_type = cfg.account.and_then(|a| a.billing_type);
+            if let Some(account) = cfg.account {
+                hint = account.plan_hint();
+                billing_type = account.billing_type;
+            }
             has_primary_api_key = cfg.api_key.is_some();
         }
         parse(&bytes).map_err(|_| ())
@@ -264,6 +291,8 @@ pub fn read(home: &Path) -> Current {
             current.present |= metadata.access || metadata.refresh;
             auth = metadata;
         }
+        let sub = sub.or(hint.0);
+        let tier = tier.or(hint.1);
         if let Some(resolved_plan) =
             format_plan(sub.as_deref(), tier.as_deref(), billing_type.as_deref())
         {
@@ -289,6 +318,7 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
     let mut summary = Summary::default();
     let mut auth = AuthMetadata::default();
     let mut billing_type = None;
+    let mut hint = (None, None);
     let mut sub = None;
     let mut tier = None;
     let mut has_api_key = false;
@@ -302,6 +332,7 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
             if let Ok(cfg) = serde_json::from_value::<Config>(val) {
                 has_api_key |= cfg.api_key.is_some();
                 if let Some(acct) = cfg.account {
+                    hint = acct.plan_hint();
                     summary.display_name = display(acct.display_name, 80);
                     summary.email = display(acct.email_address, 254);
                     summary.organization = display(acct.organization_name, 120);
@@ -342,6 +373,8 @@ pub(super) fn summarize_stage(stage: &super::archive::Stage) -> SavedSummary {
             }
         }
     }
+    let sub = sub.or(hint.0);
+    let tier = tier.or(hint.1);
     summary.plan = format_plan(sub.as_deref(), tier.as_deref(), billing_type.as_deref());
     auth.api_key = has_api_key;
     SavedSummary {
@@ -385,6 +418,12 @@ mod tests {
             format_plan(Some("max"), Some("default_claude_max_5x"), None).as_deref(),
             Some("Max 5x")
         );
+        let hinted = parse(br#"{"oauthAccount":{"emailAddress":"a@example.invalid","billingType":"apple_subscription","organizationType":"claude_pro","organizationRateLimitTier":"default_claude_ai"}}"#).unwrap();
+        assert_eq!(hinted.plan.as_deref(), Some("Pro"));
+        let max = parse(br#"{"oauthAccount":{"organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_20x"}}"#).unwrap();
+        assert_eq!(max.plan.as_deref(), Some("Max 20x"));
+        let other = parse(br#"{"oauthAccount":{"organizationType":"personal_weird"}}"#).unwrap();
+        assert!(other.plan.is_none());
     }
     #[test]
     fn auth_metadata_expires_on_read_and_legacy_or_incomplete_values_are_unknown() {

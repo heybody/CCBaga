@@ -126,3 +126,5 @@ local.10 同时按用户要求加入应用内更新：启动及每六小时检�
 验证：`tsc --noEmit`、`bun test`（24 项）通过；`CCBAGA_TEST_BROWSER=<本机 Chrome> node --experimental-strip-types scripts/test-identities-ui.ts` 中身份、更新、残留、操作进度、浏览器核验/清理、网络诊断用例全部通过，仅 `test-browser-profiles` 因本机未解包 `browser-runtime/Browser.app` 无法运行。尚未打包安装、未在真实 Tauri 窗口验收。
 
 深色换皮第二轮：整体调亮对比度；运行状态并入标题栏、去掉快捷键提示行；个人默认组织名（<邮箱>'s Organization）与「状态未知」标签不再显示；空身份说明缩短；「带入会话」改称「带入未完成会话」。应用图标改为 assets/ccd-switch-icon.svg（深色身份插槽 + 切换箭头），重新生成 src-tauri/icons 的 png/icns/ico。
+
+深色换皮第三轮：应用图标简化为深色底绿色开关；套餐改为名称旁彩色标签（Pro 蓝、Max 金、Team/Enterprise 紫）；原生层在凭据元数据缺套餐时（macOS 钥匙串不读）改用 .claude.json oauthAccount 的 organizationType / organizationRateLimitTier 推断，仅限已知值，不读令牌；已暂存身份的摘要要等下次保存才会补上套餐。初始窗口 460×500、最小 400×400。

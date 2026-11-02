@@ -1,6 +1,6 @@
 #!/bin/sh
 # [INPUT]: assets/ 两张压缩品牌图、scripts/make-icon.swift 与 macOS iconutil。
-# [OUTPUT]: src-tauri/icons 下 CCD Switch icon.png/icon.icns（深色身份插槽，源为 assets/ccd-switch-icon.svg 渲染的 PNG），browser-runtime/icons 下 CCBaga-B icon.png/app.icns（橙底浏览器 B）。
+# [OUTPUT]: src-tauri/icons 下 CCD Switch icon.png/icon.icns（深色底绿色开关，源为 assets/ccd-switch-icon.svg 渲染的 PNG），browser-runtime/icons 下 CCBaga-B icon.png/app.icns（橙底浏览器 B）。
 # [POS]: 两个应用图标的可重复生成入口；生成后由 brand-browser.sh 与 Tauri 打包使用。
 # [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 set -eu

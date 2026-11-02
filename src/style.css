@@ -625,6 +625,10 @@ html.ccd-dark #app { display:flex; flex-direction:column; background-color:var(-
 .slot-meta { font-size:11px; color:var(--ccd-faint); font-variant-numeric:tabular-nums; }
 .slot.empty:not(.active) .slot-title strong { color:#cfd6d9; font-weight:500; }
 .slot.empty:not(.active) .slot-index { border-style:dashed; }
+.slot-plan { align-self:center; padding:0 7px; border-radius:5px; font-size:10.5px; font-weight:600; line-height:18px; letter-spacing:.3px; white-space:nowrap; color:#c4ccd0; background:#2a3236; }
+.slot-plan.plan-pro { color:#9fc8ff; background:#1d3047; }
+.slot-plan.plan-max { color:#ffd58a; background:#3d2f15; }
+.slot-plan.plan-team,.slot-plan.plan-enterprise { color:#d2b8ff; background:#2f2447; }
 .slot-tags { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; max-width:170px; }
 .slot-tag { padding:1px 6px; border:1px solid var(--ccd-line2); border-radius:4px; font:10px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; color:#bcc5c9; white-space:nowrap; }
 .slot-tag.auth-local_unexpired { border-color:#1d9e7555; color:var(--ccd-accent); }

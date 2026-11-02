@@ -242,12 +242,11 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       onClick={()=>{if(on||!slot.target)return;if(expanded)setReview(null);else choose(slot.target);}}>
       <span className={`slot-index${on?' live':''}`} aria-hidden="true">{on?<i className="slot-dot"/>:index+1}</span>
       <span className="slot-text">
-       <span className="slot-title"><strong>{title}</strong>{on&&<em>{t('当前使用')}</em>}</span>
+       <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
        {email&&<span className="slot-sub">{email}</span>}
        {detail.filter(Boolean).length>0&&<span className="slot-meta">{detail.filter(Boolean).join(' · ')}</span>}
       </span>
       <span className="slot-tags">
-       {meta?.plan&&<span className="slot-tag">{meta.plan}</span>}
        {status&&status!=='unknown'&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
       </span>
       {!on&&<span className="slot-cta" aria-hidden="true">{expanded?t('收起'):t('切换 →')}</span>}
