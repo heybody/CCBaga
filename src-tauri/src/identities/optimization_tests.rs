@@ -1135,8 +1135,10 @@ fn windows_log_junction_and_redirected_parent_are_refused_without_changes() {
         private::directory(link.parent().unwrap()).unwrap();
         if parent { private::directory(&outside.join("logs")).unwrap(); }
         let status = std::process::Command::new("cmd")
-            .args(["/C", "mklink", "/J"]).arg(&link).arg(&outside).output().unwrap();
-        assert!(status.status.success());
+            .args(["/C", "mklink", "/J"])
+            .arg(link.to_string_lossy().replace('/', "\\"))
+            .arg(outside.to_string_lossy().replace('/', "\\")).output().unwrap();
+        assert!(status.status.success(), "junction fixture: {}", String::from_utf8_lossy(&status.stderr));
         let result = crate::cleaner::identity::sources(&f.home, &Policy::default());
         // 先移除 junction 本身，不遍历它，夹具清理只处理普通目录。
         fs::remove_dir(&link).unwrap();
