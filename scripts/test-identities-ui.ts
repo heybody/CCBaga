@@ -18,6 +18,7 @@ import {testClaudeResidue} from './test-claude-residue.ts';
 import {testIdentityOperation} from './test-identity-operation.ts';
 import {testAppUpdate} from './test-app-update.ts';
 const engine=process.platform==='darwin'?'Browser.app/Contents/MacOS/Chromium':process.platform==='win32'?'WindowsBrowser/chrome.exe':'LinuxBrowser/chrome';
+const executablePath=process.env.CCBAGA_TEST_BROWSER||resolve('browser-runtime',engine);
 const server=await createServer({server:{host:'127.0.0.1',port:0,strictPort:false,watch:{ignored:['**/src-tauri/**','**/browser-runtime/**','**/releases/**','**/dist/**']}},optimizeDeps:{include:['@tauri-apps/api/mocks']}});
 await server.listen();
 const address=server.httpServer!.address() as {port:number};
@@ -28,7 +29,7 @@ const temporary=await mkdtemp(join(tmpdir(),'ccbaga-ui-'));
 for(const name of ['config','cache'])await mkdir(join(temporary,name));
 Object.assign(env,{HOME:temporary,XDG_CONFIG_HOME:join(temporary,'config'),XDG_CACHE_HOME:join(temporary,'cache')});
 let browser;
-try{browser=await chromium.launch({executablePath:process.env.CCBAGA_TEST_BROWSER||resolve('browser-runtime',engine),headless:true,env});}
+try{browser=await chromium.launch({executablePath,headless:true,env});}
 catch(error){await server.close();await rm(temporary,{recursive:true,force:true});throw error;}
 let checks=0;
 try{
@@ -181,6 +182,6 @@ try{
  checks+=await testNetworkDiagnostics(browser,base);
  checks+=await testClaudeResidue(browser,base);
  checks+=await testIdentityOperation(browser,base);
- checks+=await testBrowserProfiles(resolve('browser-runtime',engine),base,temporary,env);
+ checks+=await testBrowserProfiles(executablePath,base,temporary,env);
  console.log(`${checks} identity, browser and network UI simulation checks passed; no native commands or user data used.`);
 }finally{await browser.close();await server.close();await rm(temporary,{recursive:true,force:true});}
