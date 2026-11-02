@@ -809,3 +809,9 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 /* 长标题在最窄窗口下省略，不挤掉右侧按钮 */
 .ccd-brand { flex:1; }
 .ccd-brand strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ----- macOS 叠加标题栏：标题与红绿灯同一行，左侧让出红绿灯；窄窗口运行状态只留圆点 ----- */
+html.mac.ccd-dark .ccd-bar { height:32px; margin-bottom:4px; padding:0 8px 0 78px; gap:8px; cursor:default; user-select:none; -webkit-user-select:none; }
+html.mac.ccd-dark .ccd-brand strong { font-size:13px; }
+html.mac.ccd-dark .ccd-icon { width:28px; height:28px; }
+@media (max-width:520px) { html.mac.ccd-dark .ccd-running-text { display:none; } }

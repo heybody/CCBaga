@@ -10,8 +10,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IdentityPanel } from './identities';
 import './index.css';
 import './style.css';
+// macOS 使用叠加标题栏：标题栏与红绿灯同一行，由面板标题栏负责拖动；其他平台保留顶部拖动条。
+const mac = /Mac/.test(navigator.userAgent);
+if (mac)
+    document.documentElement.classList.add('mac');
 function App() {
-    return <><div className="drag-strip" onMouseDown={e => { if (e.button === 0)
-        void getCurrentWindow().startDragging(); }}/><div className="ccd-shell"><IdentityPanel/></div></>;
+    return <>{!mac && <div className="drag-strip" onMouseDown={e => { if (e.button === 0)
+        void getCurrentWindow().startDragging(); }}/>}<div className="ccd-shell"><IdentityPanel/></div></>;
 }
 createRoot(document.getElementById('app')!).render(<MotionRoot><TooltipProvider delayDuration={600} skipDelayDuration={300}><App /></TooltipProvider></MotionRoot>);

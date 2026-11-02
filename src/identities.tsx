@@ -9,6 +9,7 @@ import {Button,Checkbox,Input} from 'cromma-ui';
 import {Refresh,Settings01 as Settings,EraserDefault,FolderDefault} from 'cromma-ui/pika';
 import {AnimatePresence,MotionConfig,motion} from 'motion/react';
 import {invoke} from '@tauri-apps/api/core';
+import {getCurrentWindow} from '@tauri-apps/api/window';
 import {listen} from '@tauri-apps/api/event';
 import {useI18n} from './i18n';
 import {AppDialog} from './dialog';
@@ -308,8 +309,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const drawerTitle:Record<Drawer,string>={settings:t('设置'),residue:t('Claude 文件残留'),keep:t('工作区保留'),help:t('使用说明')};
  return <MotionConfig reducedMotion={motionSetting.active?'never':'always'}>
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
-  <header className="ccd-bar">
-   <div className="ccd-brand"><strong>Claude Code Desktop Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status">{running}</span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
+  <header className="ccd-bar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}>
+   <div className="ccd-brand"><strong>Claude Code Desktop Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>
