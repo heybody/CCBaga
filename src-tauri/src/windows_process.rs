@@ -1,5 +1,5 @@
 // [INPUT]: Win32 Toolhelp/进程句柄、当前用户 SID、精确 CLI 入口与独立浏览器资料路径。
-// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI）精确进程与句柄复核后的结束；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
+// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI、独立 Native Host）精确进程与句柄复核后的结束；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
 // [POS]: Windows 进程边界；参数仅用于原生判定，不返回 UI；不对其他用户或名称相似的程序执行终止。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{current_sid, input, process_sid, response};
@@ -241,6 +241,17 @@ fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
         return Some("Claude Code");
     }
     let local = normalized(&std::env::var("LOCALAPPDATA").ok()?);
+    // 浏览器连接器在 Desktop 退出后仍可持有日志目录；无包身份时也必须识别。
+    if let Some(relative) = path.strip_prefix(&format!(
+        "{local}\\packages\\claude_pzs8sxrjxfjjc\\localcache\\roaming\\claude-nativehost\\"
+    )) {
+        let parts: Vec<_> = relative.split('\\').collect();
+        if parts.len() == 2 && version_name(parts[0]) && !parts[0].ends_with(".exe")
+            && parts[1] == "chrome-native-host.exe"
+        {
+            return Some("Claude Desktop");
+        }
+    }
     // 新商店版把内置 CLI 放在包目录外，进程没有 MSIX 包身份；仅接受实测官方布局。
     if let Some(relative) = path.strip_prefix(&format!(
         "{local}\\claude-data\\claude_pzs8sxrjxfjjc\\claude-code\\"
@@ -262,6 +273,7 @@ fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
         if [
             "claude.exe",
             "cowork-svc.exe",
+            "chrome-native-host.exe",
             "claude-ssh-askpass.exe",
             "claude-ssh-proxy.exe",
         ]
@@ -305,6 +317,7 @@ fn processes(terminate: bool) -> Result<Vec<(u32, Handle)>, String> {
         if ([
             "claude.exe",
             "cowork-svc.exe",
+            "chrome-native-host.exe",
             "claude-ssh-askpass.exe",
             "claude-ssh-proxy.exe",
             "node.exe",
@@ -626,6 +639,24 @@ impl ChildJob {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_native_host_without_package_identity_is_recognized_exactly() {
+        let local = std::env::var("LOCALAPPDATA").unwrap();
+        let base = format!(r"{local}\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude-NativeHost");
+        let official = format!(r"{base}\4.4212.0\chrome-native-host.exe");
+        assert_eq!(claude_kind(&official, &[]), Some("Claude Desktop"));
+        assert_eq!(claude_kind(&official.to_uppercase().replace('\\', "/"), &[]), Some("Claude Desktop"));
+        for path in [
+            format!(r"{base}\latest\chrome-native-host.exe"),
+            format!(r"{base}\4.4212.0.exe\chrome-native-host.exe"),
+            format!(r"{base}\4.4212.0\extra\chrome-native-host.exe"),
+            official.replace("Claude_pzs8sxrjxfjjc", "Unrelated_pzs8sxrjxfjjc"),
+            official.replace("Claude-NativeHost", "Claude-NativeHostOther"),
+            official.replace("chrome-native-host.exe", "other.exe"),
+        ] {
+            assert_eq!(claude_kind(&path, &[]), None, "{path}");
+        }
+    }
     #[test]
     fn desktop_embedded_cli_without_package_identity_is_recognized_exactly() {
         let local = std::env::var("LOCALAPPDATA").unwrap();

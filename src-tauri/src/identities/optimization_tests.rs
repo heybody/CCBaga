@@ -1,5 +1,5 @@
 // [INPUT]: 虚构 UUID/组织/凭据、隔离文件系统和归档格式。
-// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、macOS/Windows 不同 Desktop 账号与 Linux 排除 macOS 路径、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
+// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、Windows 缓存占用时部分挪动回填、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
 // [POS]: 账号匹配与不可变归档代次的离线证明，不读取真实用户数据。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -866,6 +866,41 @@ fn carry_sessions_keeps_live_history_and_merges_archived_without_overwrite() {
     s.switch(&a, "B", &p, &r).unwrap();
     assert_eq!(f.token(), "a-token");
     assert!(!f.home.join(".claude/projects/p/b.jsonl").exists());
+}
+#[cfg(windows)]
+#[test]
+fn locked_cache_returns_partially_parked_data_without_pending_recovery() {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE};
+    let f = Fixture::new();
+    let r = Reporter::channel(None);
+    let p = Policy::default();
+    let mut s = store::Store::open(&f.vault, &f.home).unwrap();
+    s.db.set_flag("fast_archive", true).unwrap();
+    f.login("A", "one", "a-token");
+    f.write(".claude/.last-cleanup", b"first-cache");
+    f.write(".claude/cache/held.log", b"locked-cache");
+    // 允许快照读取，但目录句柄不共享删除，复现 Windows 的移动失败。
+    let held = fs::OpenOptions::new().read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(f.home.join(".claude/cache")).unwrap();
+    let error = s.switch("empty", "A", &p, &r).unwrap_err();
+    assert!(error.contains("系统错误码"), "{error}");
+    assert!(s.db.get("recovery").unwrap().is_none());
+    assert!(s.db.get("target").unwrap().is_none());
+    assert!(s.db.get("browser.previous").unwrap().is_none());
+    assert_eq!(f.token(), "a-token");
+    assert_eq!(fs::read(f.home.join(".claude/.last-cleanup")).unwrap(), b"first-cache");
+    assert_eq!(fs::read(f.home.join(".claude/cache/held.log")).unwrap(), b"locked-cache");
+    // 解除占用后可以再次切换，并从归档恢复全部数据。
+    drop(held);
+    s.switch("empty", "A", &p, &r).unwrap();
+    let a = s.records()[0].id.clone();
+    s.switch(&a, "empty", &p, &r).unwrap();
+    assert_eq!(f.token(), "a-token");
+    assert_eq!(fs::read(f.home.join(".claude/.last-cleanup")).unwrap(), b"first-cache");
+    assert_eq!(fs::read(f.home.join(".claude/cache/held.log")).unwrap(), b"locked-cache");
 }
 #[test]
 fn fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mix() {

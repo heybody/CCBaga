@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 目录、用户策略、白名单源、已验收归档代次、认证加密与平台凭据桥。
-// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换（会话带入开关：会话留在工作区并补缺并入目标旧会话）、持久恢复记录、原位配置合并、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
+// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
 // [POS]: 身份的文件事务；SQLite 与文件系统由恢复日志协调，不能假装是同一原子事务。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -477,7 +477,10 @@ impl Store {
             }
             private::safe(&source.path)?;
             private::directory(data.parent().unwrap())?;
-            fs::rename(&source.path, &data).map_err(problem)?;
+            fs::rename(&source.path, &data).map_err(|error| format!(
+                "身份缓存无法移动（Windows/系统错误码 {:?}）；请退出 Claude 及其浏览器连接器后重试。",
+                error.raw_os_error()
+            ))?;
             private::sync_parent(&data);
         }
         Ok(())
@@ -718,7 +721,29 @@ impl Store {
                 Some(outgoing.manifest.sources.len()),
             );
             mutated = true;
-            self.park(&outgoing, &current)?;
+            if let Err(error) = self.park(&outgoing, &current) {
+                // 尚未清除身份：只回填已经挪走的部分，不能再次 park 同一个被占用目录。
+                let rollback: Result<(), String> = (|| {
+                    for (n, source) in current.iter().rev() {
+                        let data = outgoing.data(*n);
+                        if !outgoing.is_plain(*n) || !data.exists() {
+                            continue;
+                        }
+                        if source.path.exists() {
+                            return Err("缓存回填位置已有数据；请保留暂存文件。".into());
+                        }
+                        private::safe(&data)?;
+                        private::parents(source.path.parent().unwrap())?;
+                        fs::rename(&data, &source.path).map_err(problem)?;
+                        private::sync_parent(&source.path);
+                    }
+                    Ok(())
+                })();
+                if rollback.is_ok() {
+                    mutated = false;
+                }
+                return Err(error);
+            }
             self.clear(&current, reporter, "clear")?;
             #[cfg(test)]
             if self.fail_after_clear {

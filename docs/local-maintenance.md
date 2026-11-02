@@ -1,6 +1,10 @@
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
-当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.11`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.12`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
+
+local.12（2026-11-02，win-desktop）：Windows 独立 Claude Native Host 纳入进程枚举及精确安装路径判定，沿用当前用户 SID、创建时间和原句柄复核。快速模式部分缓存移动失败时，先将已移动内容逆序回填，再撤销未开始清除身份的事务；不再反复移动同一占用目录导致自动回滚与恢复一起失败。移动错误保留系统错误码，不输出凭据正文。新增 Windows 真实目录句柄占用、缓存回填、释放后空身份往返及连接器相似路径拒绝回归。
+
+用户现场：19:31 尝试切空身份，快速模式在第 6 项缓存处中断，恢复也停在 park；两份归档认证与数据库完整性正常。按用户要求，19:38 将已移动的 5 项缓存回填，117 项非移动归档文件/配置字段与现场完全一致，无登录字段被清除；保险库完整副本保存在主仓库忽略的 rollback/windows-recovery-20261102-193815。恢复 active/browser 指针并解除未完成事务后启动 Claude，界面确认 cares_ytbj / Pro、项目与会话可见。随后仅操作源码及隔离测试，不结束真实 Claude。
 
 - 根目录 `.claude.json.backup*` 恢复许可改用上游 `90404e2` 的实现（与本地修复等价），本地只保留 Desktop 未知邮箱提示；上游的 `.claude/debug/latest` 链接跳过、原地备份、套餐/本地授权状态徽标、进程预览和加密导出/导入随基线带入。
 - 继续保留：Desktop OAuth 缓存与账号标识随身份、未知账号复用当前槽位（`workspace_id`）、空快照回收时修正 active 指针、身份专用界面（不启动浏览器伴生服务）。

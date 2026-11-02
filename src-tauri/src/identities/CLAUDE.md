@@ -32,3 +32,5 @@ macOS/Windows本地增强：Desktop config.json仅随身份保存OAuth缓存两�
 Windows local.8 回归：新 Claude-Data 登录字段/Cookie 与旧路径共存、空身份、A/B 往返和故障回滚，Cowork/内置 CLI/共享 Local State 保留；侧栏测试遍历 desktop_roots 全部目录。
 
 local.10：identities_stop 缺失 confirmed 或不为 true 时在任务锁/原生结束进程前直接拒绝，不沿用旧版无确认调用。
+
+local.12：store.rs 在清除身份之前的 park 部分失败时逆序回填已移动缓存，成功回填才解除事务；Windows 目录占用回归验证无悬挂 recovery、登录/缓存不变、解除占用后可继续往返。

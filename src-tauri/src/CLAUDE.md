@@ -12,7 +12,7 @@ windows.rs: Win32 剪贴板、TokenUser/TokenOwner 文件检查、绝对长路�
 windows_tests.rs: 隔离文件所有者、长路径/命名空间及代理/语言格式回归；CI 专用时区写入后还原，不操作本机真实身份。
 windows_timezones.rs: CLDR 48 固定全量 Windows/IANA 映射与目录别名，无运行时下载或猜测；原始许可证作为 Windows 资源交付。
 windows_browser_arguments.rs: Windows 8.1+ NtQueryInformationProcess 经仅查询句柄读取浏览器完整 argv，校验本地 UNICODE_STRING 缓冲范围/长度/对齐并拒绝非法 UTF16/NUL，避免沙箱 VM_READ 需求；未知不冒充空参数，测试只读本测试进程。
-windows_process.rs: Win32 当前用户 Toolhelp/MSIX Claude 精确识别、创建时间与句柄终止；浏览器独立扫描本人固定引擎，以唯一绝对资料参数和目录 volume/fileIndex 核验，支持 verbatim/8.3 别名，读取未知阻止修改、仅持原句柄确认退出才忽略竞态；正常 WM_CLOSE 只发给已证明目标。浏览器仅查询句柄读取完整 argv，CLI PEB 的 VM_READ 路径保留；原始 argv 不序列化，CLI 超时继续 Job Object 限树；Windows CI 复核时区写入并还原。
+windows_process.rs: Win32 当前用户 Toolhelp/MSIX Claude 与独立 Native Host 精确识别、创建时间与句柄终止；浏览器独立扫描本人固定引擎，以唯一绝对资料参数和目录 volume/fileIndex 核验，支持 verbatim/8.3 别名，读取未知阻止修改、仅持原句柄确认退出才忽略竞态；正常 WM_CLOSE 只发给已证明目标。浏览器仅查询句柄读取完整 argv，CLI PEB 的 VM_READ 路径保留；原始 argv 不序列化，CLI 超时继续 Job Object 限树；Windows CI 复核时区写入并还原。
 system.rs: macOS 地区参数在修改时区前只读预检，读回按系统规范别名核验；电脑环境查询、独立修改命令与目录限定的地区时区/语言/区域应用；后台执行原生操作，错误后重新读取系统状态。
 native.rs: 剪贴板、辅助功能设置、进程编号与凭据解锁桥；旧扫描只读凭据属性，已移除旧批量单项凭据删除包装；身份快照/恢复仅原生可用，默认服务正文不送 UI。
 cleaner.rs: 共享精确进程停止、文件扫描/快照保护/只读进程状态与独立残留扫描计划；Windows 外置 AppData 只允许同一目标白名单且复核规范路径/用户所有权；原生 CLI 识别当前用户官方 versions 下的精确数字版本程序；结束全部已识别的 Claude 进程时逐轮核验与收敛；CLI/身份/残留修改共用事务锁，各调用独立进度通道。
