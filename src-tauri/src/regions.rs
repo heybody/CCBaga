@@ -178,10 +178,10 @@ mod tests {
     }
     #[test]
     fn catalog_has_unique_ids_and_valid_native_timezones() {
-        let machine = crate::browser::config::machine().unwrap();
+        let machine = crate::system::read_for_tests();
         for (i, r) in REGIONS.iter().enumerate() {
             assert!(!REGIONS[..i].iter().any(|other| other.id == r.id));
-            assert!(machine.timezones.iter().any(|zone| zone == r.timezone));
+            assert!(machine["timezones"].as_array().unwrap().iter().any(|zone| zone.as_str() == Some(r.timezone)));
         }
         assert!(find("us; touch /tmp/injected").is_err());
     }

@@ -66,19 +66,10 @@ fn repeated_accounts_update_one_slot_and_keep_latest_tokens_and_history() {
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    s.db.configure_browser(true, false, None).unwrap();
-    let initial_browser = s.db.browser_slot().unwrap();
     f.login("A", "one", "a-first");
     f.write(".claude/history.jsonl", b"a-history");
     s.switch("empty", "A custom", &p, &r).unwrap();
     let a = s.records()[0].id.clone();
-    assert_eq!(a, initial_browser);
-    assert_eq!(
-        s.db.browser_for(&a).unwrap().as_deref(),
-        Some(initial_browser.as_str())
-    );
-    let browser_b = s.db.browser_slot().unwrap();
-    assert_ne!(browser_b, initial_browser);
     f.login("B", "one", "b-first");
     f.write(".claude/history.jsonl", b"b-history");
     s.switch(&a, "B custom", &p, &r).unwrap();
@@ -110,11 +101,6 @@ fn repeated_accounts_update_one_slot_and_keep_latest_tokens_and_history() {
             format!("a-new-{n}").as_bytes()
         );
         assert_eq!(s.records().len(), 2);
-        assert_eq!(s.db.browser_slot().unwrap(), initial_browser);
-        assert_eq!(
-            s.db.browser_for(&b).unwrap().as_deref(),
-            Some(browser_b.as_str())
-        );
     }
     assert_eq!(
         s.records().iter().find(|row| row.id == a).unwrap().name,
@@ -595,8 +581,6 @@ fn in_place_backup_preserves_workspace_and_missing_summaries_stay_lazy() {
     let r = Reporter::channel(None);
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    s.db.configure_browser(true, false, None).unwrap();
-    let draft_slot = s.db.browser_slot().unwrap();
 
     f.write(
         ".claude.json",
@@ -629,10 +613,7 @@ fn in_place_backup_preserves_workspace_and_missing_summaries_stay_lazy() {
     assert_eq!(f.token(), "tok-max");
     assert_eq!(s.records().len(), 1);
     let rec = &s.records()[0];
-    assert_eq!(rec.id, draft_slot);
     assert_eq!(rec.name, "主力 Max 20x");
-    assert_eq!(s.db.browser_slot().unwrap(), draft_slot);
-    assert!(s.db.browser_for(&rec.id).unwrap().is_none());
     assert!(s.db.get("active").unwrap().is_none());
 
     // 摘要只输出显示字段和本地时间状态，不宣称服务器验证成功。
@@ -675,7 +656,6 @@ fn desktop_only_accounts_update_selected_slots_without_extra_cards() {
         .to_string_lossy()
         .into_owned();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    s.db.configure_browser(false, false, None).unwrap();
     f.write(cookie, b"desktop-A");
     s.switch("empty", "Desktop A", &p, &r).unwrap();
     let a = s.records().into_iter().find(|r| !r.empty).unwrap().id;

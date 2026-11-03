@@ -688,9 +688,9 @@ mod tests {
         const FIXTURE: &str = "CCBAGA_TEST_LINUX_LOCALE";
         if let Ok(expected) = std::env::var(FIXTURE) {
             assert_eq!(session_language(), "zh-Hans");
-            let state = crate::browser::config::machine().unwrap();
+            let country = crate::regions::locale_country(&locale()).unwrap_or_default();
             assert_eq!(
-                state.locale_country,
+                country,
                 if expected == "allow" { "CN" } else { "TW" }
             );
             let result: Result<Value, _> = crate::native::decode(unsafe {

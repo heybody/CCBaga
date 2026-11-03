@@ -1,5 +1,6 @@
 # CCBaga - CCBaga-A（宿主，橙底清理员 A）与 CCBaga-B（指纹 Chromium，橙底浏览器 B）
 安装为 /Applications/CCBaga-A.app（ai.local.requirement-french）与 /Applications/CCBaga-B.app（ai.local.requirement-french.browser）；稳定包标识与独立资料目录保护钥匙串、设置和浏览器资料。
+> local.15 身份专用版：不编译或启动 B 浏览器，不提供浏览器 IPC、指纹迁移或提示；旧 browser.enabled 在打开库时关闭，旧资料仅保留兼容，不参与身份事务。UI 测试使用 runner 系统 Chrome。
 Tauri 2.12.2 + Rust + macOS AppKit/UniformTypeIdentifiers/Accessibility/Security/CoreLocation + SHA-256 + React 19.3.0 + TypeScript 5.9.3 + Cromma UI 本地副本 + Radix UI 1.6.7 + Tailwind CSS 4.3.3 + Motion 14.0.0 + Vite 7.3.7 + YAML 2.9.1（仅构建）
 
 <directory>

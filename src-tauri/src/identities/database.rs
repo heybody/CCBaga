@@ -1,5 +1,5 @@
 // [INPUT]: rusqlite/内嵌 SQLite、私有保险库目录和脱敏身份元数据与本机加盐的账号索引。
-// [OUTPUT]: SQLite v3 身份/浏览器目录及恢复事务、读取时计算过期状态的脱敏摘要、原地备份原子提交；备份不改选择指针，互斥提交后才回收空记录。
+// [OUTPUT]: SQLite v3 身份目录及只读兼容旧浏览器元数据及恢复事务、读取时计算过期状态的脱敏摘要、原地备份原子提交；备份不改选择指针，互斥提交后才回收空记录。
 // [POS]: 保险库的索引事务；凭据和会话正文仅进入加密归档，不进入数据库。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use rusqlite::{params, Connection, OptionalExtension};
@@ -61,13 +61,8 @@ impl Database {
             return Err("身份目录版本较新，请更新应用。".into());
         }
         tx.execute_batch("CREATE TABLE IF NOT EXISTS browser_bindings(identity TEXT PRIMARY KEY,slot TEXT NOT NULL UNIQUE,seed INTEGER NOT NULL UNIQUE); PRAGMA user_version=3;").map_err(error)?;
-        // 未设置过的用户默认联动；显式关闭和已有资料指针始终保留。
-        tx.execute_batch("INSERT OR IGNORE INTO state VALUES('browser.enabled','1'); INSERT OR IGNORE INTO state VALUES('browser.active','legacy');").map_err(error)?;
-        tx.execute(
-            "INSERT OR IGNORE INTO state VALUES('browser.draft',?1)",
-            [super::new_id()?],
-        )
-        .map_err(error)?;
+        // 身份专用版停用旧联动标志；旧绑定和资料指针原样保留以兼容历史数据库。
+        tx.execute("UPDATE state SET value='0' WHERE key='browser.enabled' AND value!='0'", []).map_err(error)?;
         tx.commit().map_err(error)?;
         Ok(Self { connection })
     }
@@ -146,11 +141,9 @@ impl Database {
         &self,
         record: &Record,
         summary: &super::profile::SavedSummary,
-        browser: Option<(&str, u32)>,
     ) -> Result<(), String> {
         if !super::valid_id(&record.id)
             || !super::catalog::archive_name(&record.archive)
-            || browser.is_some_and(|(slot, seed)| !super::valid_id(slot) || seed == 0)
         {
             return Err("迁移身份元数据无效。".into());
         }
@@ -172,13 +165,6 @@ impl Database {
                 record.empty, record.account_key],
         ).map_err(error)?;
         self.set_summary(&record.id, summary)?;
-        if let Some((slot, seed)) = browser {
-            tx.execute(
-                "INSERT INTO browser_bindings(identity,slot,seed) VALUES(?1,?2,?3)",
-                params![record.id, slot, seed],
-            )
-            .map_err(error)?;
-        }
         tx.commit().map_err(error)
     }
     pub fn records(&self) -> Result<Vec<Record>, String> {
@@ -264,7 +250,6 @@ impl Database {
         for record in records.into_iter().filter(|r| !r.empty) {
             if let Some(key) = record.account_key.filter(|k| !k.is_empty()) {
                 if let Some(id) = seen.get(&key) {
-                    super::browser_link::merge(&tx, &record.id, id)?;
                     tx.execute(
                         "UPDATE state SET value=?2 WHERE key='active' AND value=?1",
                         params![record.id, id],
@@ -349,12 +334,10 @@ impl Database {
         .map_err(error)?;
         tx.execute("INSERT OR REPLACE INTO state VALUES('target',?1)", [target])
             .map_err(error)?;
-        super::browser_link::pending(&tx, record, target)?;
         tx.commit().map_err(error)
     }
     pub fn complete(&mut self, active: &str) -> Result<(), String> {
         let tx = self.connection.transaction().map_err(error)?;
-        super::browser_link::complete(&tx, active)?;
         tx.execute("INSERT OR REPLACE INTO state VALUES('active',?1)", [active])
             .map_err(error)?;
         tx.execute("DELETE FROM state WHERE key IN ('recovery','target')", [])

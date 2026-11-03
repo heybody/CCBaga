@@ -21,15 +21,12 @@ export async function testIdentityTransfer(browser:Browser,base:string){
   await current.getByRole('button',{name:'更新备份',exact:true}).click();
   let dialog=page.getByRole('dialog');await dialog.getByText('进程状态未知；执行前将重新核验。',{exact:true}).waitFor();
   assert.equal(await dialog.getByText('未检测到 Claude 进程。',{exact:true}).count(),0);await dialog.getByRole('button',{name:'取消',exact:true}).click();checks++;
-  await current.getByRole('button',{name:'导出保存备份',exact:true}).click();dialog=page.getByRole('dialog');await dialog.getByText('备份时间',{exact:true}).waitFor();assert.equal(await dialog.getByText('此备份未关联浏览器配置。',{exact:true}).count(),1);await dialog.getByRole('button',{name:'取消',exact:true}).click();checks++;
-  await page.evaluate(()=>{(window as any).identityFixture.state.browser.bound_ids.push('00000000000000000000000000000002');});await page.getByRole('button',{name:'刷新',exact:true}).click();
   const saved=page.locator('.identity-card').filter({has:page.getByRole('heading',{name:'Identity 2',exact:true})});
   await saved.getByRole('button',{name:'导出身份 Identity 2',exact:true}).click();dialog=page.getByRole('dialog');
   const submit=dialog.getByRole('button',{name:'加密导出',exact:true});assert.equal(await submit.isEnabled(),false);
   await page.evaluate(()=>{(window as any).identityFixture.transfer.cancel=true;});
   await dialog.getByRole('button',{name:'选择保存位置',exact:true}).click();assert.equal(await dialog.getByText('尚未选择文件',{exact:true}).count(),1);
   await dialog.getByRole('button',{name:'选择保存位置',exact:true}).click();await dialog.getByText('fixture.bagapack',{exact:true}).waitFor();
-  assert.equal(await dialog.getByRole('checkbox',{name:'包含浏览器指纹配置（不含网页登录资料）',exact:true}).isChecked(),false);
   await dialog.getByLabel('迁移密码（至少 12 个字符）',{exact:true}).fill('short');await dialog.getByLabel('确认迁移密码',{exact:true}).fill('short');
   await dialog.getByRole('checkbox',{name:'我会妥善保管迁移文件和密码',exact:true}).check();assert.equal(await submit.isEnabled(),false);checks++;
   await dialog.getByLabel('迁移密码（至少 12 个字符）',{exact:true}).fill('synthetic-transfer-password');await dialog.getByLabel('确认迁移密码',{exact:true}).fill('synthetic-transfer-password');
@@ -40,7 +37,6 @@ export async function testIdentityTransfer(browser:Browser,base:string){
   await dialog.getByRole('alert').waitFor();assert.equal(await submit.isEnabled(),false);assert.equal(await dialog.getByText('尚未选择文件',{exact:true}).count(),1);checks++;
   await dialog.getByRole('button',{name:'选择保存位置',exact:true}).click();await dialog.getByText('fixture.bagapack',{exact:true}).waitFor();
   await dialog.getByRole('checkbox',{name:'我会妥善保管迁移文件和密码',exact:true}).check();
-  await dialog.getByRole('checkbox',{name:'包含浏览器指纹配置（不含网页登录资料）',exact:true}).check();
   const active=await page.evaluate(()=>(window as any).identityFixture.state.active);
   await page.evaluate(()=>{(window as any).identityFixture.defer('identities_export');});await submit.click();
   await page.waitForFunction(()=>(window as any).identityFixture.pending.includes('identities_export'));
@@ -50,7 +46,6 @@ export async function testIdentityTransfer(browser:Browser,base:string){
   await page.locator('.identity-operation [data-stage="transfer_archive"]').waitFor();assert.equal(await page.locator('.identity-operation [role="progressbar"]').getAttribute('aria-valuenow'),'25');
   await page.evaluate(()=>{(window as any).identityFixture.release('identities_export');});await dialog.waitFor({state:'detached'});
   const request=await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_export').args);
-  assert.equal(request.includeBrowser,true);assert.equal(request.grant,'fixture-grant');assert.equal(request.id,'00000000000000000000000000000002');
   assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.active),active);checks++;
   await page.getByRole('button',{name:'导入',exact:true}).click();dialog=page.getByRole('dialog');
   assert.equal(await dialog.getByLabel('迁移密码（至少 12 个字符）',{exact:true}).inputValue(),'');

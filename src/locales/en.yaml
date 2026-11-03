@@ -1355,3 +1355,5 @@
 "已下载 {v0} / {v1}（{v2}%）": "Downloaded {v0} / {v1} ({v2}%)"
 "已下载 {v0}": "Downloaded {v0}"
 "正在启动自动安装，完成后将重新打开 CCD Switch…": "Starting automatic installation. CCD Switch will reopen when finished…"
+
+'仅迁移保存的身份数据，不迁移保留在工作区的资料；已有同账号时拒绝覆盖。': 'Only saved identity data is transferred. Workspace data is excluded; an existing account is never overwritten.'

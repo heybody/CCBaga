@@ -1,5 +1,6 @@
 # scripts/
 > L2 | 父级: ../CLAUDE.md
+> local.15 身份专用版：不编译或启动 B 浏览器，不提供浏览器 IPC、指纹迁移或提示；旧 browser.enabled 在打开库时关闭，旧资料仅保留兼容，不参与身份事务。UI 测试使用 runner 系统 Chrome。
 make-icon.swift: AppKit 将压缩品牌图绘入 macOS 圆角网格，保持原图并添加透明留白与投影。
 make-icons.sh: 调用 make-ccd-icons.py 生成 CCD Switch 图标，另用 AppKit/iconutil 生成浏览器 B 图标。
 make-ccd-icons.py: Tauri SVG 转换器生成透明应用 PNG/ICO/ICNS、macOS 单色托盘及 Windows 深浅配色托盘，只复制明确列出的资产。
@@ -12,7 +13,6 @@ claude-cli.ps1: 包管理器仅按 PATH 外部程序发现，避免精确命令�
 package-browser.ps1: Windows 固定引擎前置核验，不打包用户资料或私钥。
 test-skill-install.ts: Agent Skills metadata/完整公开文件与 npm skills 1.7.2 的四项真实安装；临时 HOME 和缓存，关闭统计，验证共享目录、完整文件与无 symlink。
 test-network-diagnostics.ts: 共用隔离引擎验证真实网络页的 Claude 出口四态、逐域 403 原因、命令异常/空返回拒绝、重测清旧结果和双语；不访问真实网络。
-test-browser-verification.ts: 顶部身份卡顺序、双语与不匹配/空身份/未联动 DOM 回归； 复用隔离 Playwright 引擎，真实 browser.html 的三态背景/波纹、原因、图片实际解码、紧凑布局、重测和双语 DOM 回归；虚构本机 HTTP 回报，无截图/真实账号。
 test-identities-ui.ts: 默认勾选、关闭确认/取消与恢复联动； Node.js 标准管道 + 固定引擎 + playwright-core 的隔离 DOM 模拟；40 个虚构账号验证当前槽位去重/无最近使用卡片、竖式工牌、弹簧/视差、Alert 安全默认、双语、保留选择与切换/删除/失败/恢复，临时 HOME/XDG，不调用真实 IPC、不截图或外连。
 test-claude-residue.ts: 复用身份页内存 IPC 验证显式扫描、仅精确缓存默认选择、不完整项禁选、JSON 键提示、不可逆确认默认取消、精确 ID 提交、部分失败和停止失败后的重扫读回、旧计划失效与英文确认；不触碰本机文件或钥匙串。
 test-identity-transfer.ts: 临时身份迁移 DOM 回归，选择取消、密码边界/清空、真实进度与失败后重选票据/重选和取消清除可信确认/提交后状态失败读回、导入不切换、双语和本地期限到期/进程未知显示；无真实文件。
@@ -46,7 +46,5 @@ build-arch.sh: 固定摘要容器准备 Node.js 等构建/测试依赖，以非 
 
 package-linux-browser.py: 旧目录移动与新目录提交共处取消/回滚边界；Linux 源码/Arch 的所属引擎目录完整替换；暂存和提交失败保留旧构建，回滚失败保留备份并报告恢复路径，保持符号链接/权限和其他资源，不混入已删除的旧引擎文件。
 test-package-linux-browser.py: 四种目录移动取消恢复及取消后恢复失败保留备份；真实打包入口的首次/重建、版本/执行权限前置检查、复制/提交回滚及双重失败备份保留回归；临时样本不安装引擎，非 Linux 仅替换 uname 选择 Linux 分支。
-test-browser-cleanup.ts: 复用身份测试入口的 browser 模式，验证无缓存全清理、默认取消/强制勾选、精确删除参数、任务锁/真实 Channel 进度、失败与双语；仅内存 IPC，无原生或真实用户资料。
-test-browser-profiles.ts: 固定引擎的真实持久资料隔离回归；虚构 Cookie/LocalStorage 的 A/B 隔离、重开恢复和空资料，仅临时 HOME/本机页面。
 test-glib-backport.py: 三平台显式按 UTF-8 读取源码地图，核对 crates.io 源包逐文件摘要与官方两行 VariantStrIter 回补；--native 使用真实 GLib 执行优化构建的上游迭代器回归，不伪造版本或忽略公告。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

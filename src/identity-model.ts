@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 SQLite 身份目录与用户的数据保留选择。
- * [OUTPUT]: 身份/策略/账号摘要/有界进程预览显示信息类型、桌面资料与已识别邮箱的区别、默认保留选项、浏览器绑定和独立重开警告与界面分类。
+ * [OUTPUT]: 身份/策略/账号摘要/有界进程预览显示信息类型、桌面资料与已识别邮箱的区别、默认保留选项与界面分类。
  * [POS]: 身份管理的脱敏契约；只有明确允许的账号显示字段，不含凭据、原始文件正文或任意路径。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -15,8 +15,7 @@ export function currentAccountMessage(current:CurrentIdentity|undefined):string 
  if(current?.unavailable)return '账号信息暂不可读';
  return current?.desktop_present?'检测到 Desktop 本地资料；账号请在客户端确认':'未读取到 Code 账号邮箱；不代表未登录';
 }
-export type BrowserLink={enabled:boolean;bound_ids:string[]};
-export type IdentityState={browser:BrowserLink;browser_warning:string|null;records:Identity[];summaries:Record<string,IdentitySummary>;active:string;recovery:string|null;running:boolean;processes:ProcessPreview[]|null;processes_truncated:boolean;current:CurrentIdentity;options:IdentityOptions};
+export type IdentityState={records:Identity[];summaries:Record<string,IdentitySummary>;active:string;recovery:string|null;running:boolean;processes:ProcessPreview[]|null;processes_truncated:boolean;current:CurrentIdentity;options:IdentityOptions};
 // 本地维护开关：会话留在工作区并带入新账号；快速切换用 zstd 最快档。
 export type IdentityOptions={carry_sessions:boolean;fast_archive:boolean};
 export const defaultPolicy:IdentityPolicy={skills:true,plugins:true,mcp:true,settings:true,projects:true,history:false,cache:false};

@@ -10,15 +10,11 @@ import {mkdtemp,mkdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {createServer} from 'vite';
 import {chromium} from 'playwright-core';
-import {testBrowserVerification} from './test-browser-verification.ts';
-import {testBrowserProfiles} from './test-browser-profiles.ts';
-import {testBrowserCleanup} from './test-browser-cleanup.ts';
 import {testNetworkDiagnostics} from './test-network-diagnostics.ts';
 import {testClaudeResidue} from './test-claude-residue.ts';
 import {testIdentityOperation} from './test-identity-operation.ts';
 import {testAppUpdate} from './test-app-update.ts';
-const engine=process.platform==='darwin'?'Browser.app/Contents/MacOS/Chromium':process.platform==='win32'?'WindowsBrowser/chrome.exe':'LinuxBrowser/chrome';
-const executablePath=process.env.CCBAGA_TEST_BROWSER||resolve('browser-runtime',engine);
+const executablePath=process.env.CCBAGA_TEST_BROWSER||(process.platform==='darwin'?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/google-chrome');
 const server=await createServer({server:{host:'127.0.0.1',port:0,strictPort:false,watch:{ignored:['**/src-tauri/**','**/browser-runtime/**','**/releases/**','**/dist/**']}},optimizeDeps:{include:['@tauri-apps/api/mocks']}});
 await server.listen();
 const address=server.httpServer!.address() as {port:number};
@@ -43,6 +39,9 @@ try{
  const consent=()=>page.getByRole('checkbox',{name:/我已保存任务，同意结束 Claude 进程|I have saved my work and agree to end Claude processes/,exact:true});
  const confirmPanel=page.locator('.slot-confirm');
  await page.getByText('fixture@example.invalid',{exact:true}).waitFor();
+ assert.equal(await page.getByText(/浏览器未能重开|关联浏览器|browser fingerprint/i).count(),0);
+ assert.equal(await page.evaluate(()=>Object.keys((window as any).identityFixture.state).some(key=>key.startsWith('browser'))),false);checks++;
+
  // ----- 插槽列表：当前身份置顶高亮，暂存身份全部列出，空身份固定最后 -----
  assert.equal(await slots.count(),41);
  assert.equal(await slots.first().getAttribute('data-slot'),'current');assert.equal(await slots.last().getAttribute('data-slot'),'empty');
@@ -141,7 +140,7 @@ try{
  await page.getByRole('menuitem',{name:'删除',exact:true}).click();dialog=page.getByRole('alertdialog');
  await dialog.getByRole('checkbox',{name:'我知道此操作无法撤销'}).check();
  await dialog.getByRole('button',{name:'确认直接删除'}).click();await renamed.waitFor({state:'detached'});
- assert.equal(await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_delete').args.deleteBrowser),false);
+ assert.equal(await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_delete').args.deleteBrowser),undefined);
  assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.current.present),true);checks++;
  // ----- 语言切换、失败保留现状与恢复未完成切换 -----
  await page.evaluate(()=>{(window as any).identityFixture.language('en');});
@@ -177,11 +176,8 @@ try{
  await page.waitForFunction(()=>!(window as any).identityFixture.state.current.present);assert.equal(await page.evaluate(()=>(window as any).identityFixture.state.records.length),count);checks++;
  assert.equal(errors.length,0,errors.join('\n'));
  checks+=await testAppUpdate(browser,base);
- checks+=await testBrowserVerification(browser,base);
- checks+=await testBrowserCleanup(browser,base);
  checks+=await testNetworkDiagnostics(browser,base);
  checks+=await testClaudeResidue(browser,base);
  checks+=await testIdentityOperation(browser,base);
- checks+=await testBrowserProfiles(executablePath,base,temporary,env);
- console.log(`${checks} identity, browser and network UI simulation checks passed; no native commands or user data used.`);
+ console.log(`${checks} identity and network UI simulation checks passed; no native commands or user data used.`);
 }finally{await browser.close();await server.close();await rm(temporary,{recursive:true,force:true});}

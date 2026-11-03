@@ -109,3 +109,15 @@ fn identity_only_build_has_no_upstream_updater_endpoint_or_permission() {
     let capability: Value = serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
     assert!(!capability["permissions"].as_array().unwrap().iter().any(|p| p.as_str().is_some_and(|v| v.starts_with("updater:"))));
 }
+
+#[test]
+fn identity_only_build_exposes_no_browser_commands_or_startup_hooks() {
+    let source = include_str!("main.rs");
+    assert!(!source.contains("mod browser;"));
+    assert!(!source.contains("browser::"));
+    assert!(!source.contains("identities_browser,"));
+    assert!(!source.contains("--browser"));
+    let identities = include_str!("identities/mod.rs");
+    assert!(!identities.contains("browser_warning"));
+    assert!(!identities.contains("crate::browser"));
+}

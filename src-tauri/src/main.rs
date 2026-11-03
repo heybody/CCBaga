@@ -1,4 +1,4 @@
-// [INPUT]: 跨平台原生边界、Tauri 生命周期/custom-protocol、身份/清理/浏览器/系统命令与固定定制版更新页、重启、Rust 原生文件选择插件。
+// [INPUT]: 跨平台原生边界、Tauri 生命周期/custom-protocol、身份/清理/系统命令与固定定制版更新页、重启、Rust 原生文件选择插件。
 // [OUTPUT]: CCBaga-A 窗口/托盘、身份与一次性文件选择迁移命令；文件路径留在原生状态，不开放通用 WebView 文件能力。
 // [POS]: 应用编排层；不注册翻译快捷键，不读取翻译设置或 API 密钥。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -6,7 +6,6 @@
 // ----- 发布包必须内嵌前端资源，禁止依赖开发服务 -----
 #[cfg(all(not(debug_assertions), not(feature = "custom-protocol")))]
 compile_error!("发布构建需要 custom-protocol；使用 tauri build 或 cargo build --release --features custom-protocol。");
-mod browser;
 mod claude_cli;
 mod cleaner;
 mod identities;
@@ -85,16 +84,6 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            #[cfg(target_os = "linux")]
-            if args.iter().any(|arg| arg == "--browser") {
-                browser::open_urls(app.clone(), args);
-                return;
-            }
-            #[cfg(target_os = "windows")]
-            if args.iter().any(|arg| arg == "--browser") {
-                browser::open_urls(app.clone(), args);
-                return;
-            }
             let _ = args;
             show(app)
         }))
@@ -103,12 +92,7 @@ fn main() {
             app.manage(ui_language::UiLanguage::load(app.handle()));
             app.manage(local_update::Updates::default());
             app.manage(cleaner::Cleaner::default());
-            app.manage(browser::Browser::default());
             app.manage(identities::portable::Transfers::default());
-            #[cfg(target_os = "linux")]
-            browser::open_urls(app.handle().clone(), std::env::args().collect());
-            #[cfg(target_os = "windows")]
-            browser::open_urls(app.handle().clone(), std::env::args().collect());
             app.manage(tray::TrayIdentities::default());
             let menu = tray::menu(
                 app.handle(),
@@ -165,8 +149,6 @@ fn main() {
             cleaner::residue::claude_residue_scan,
             cleaner::residue::claude_residue_clean,
             identities::identities_read,
-            identities::identities_browser,
-            browser::browser_launch,
             identities::identities_stop,
             identities::identities_save,
             identities::identities_options,
@@ -185,7 +167,6 @@ fn main() {
         .run(|app, event| match event {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => show(app),
-            tauri::RunEvent::Exit => browser::forget_start_url(app),
             _ => {}
         });
 }

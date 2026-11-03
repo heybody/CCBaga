@@ -61,15 +61,14 @@ fn portable_round_trip_relocates_and_reencrypts_without_switching_or_exporting_s
     destination.login("existing-B", "other-org", "keep-live-token");
     let target = Store::open(&destination.vault, &destination.home).unwrap();
     let active = target.db.get("active").unwrap();
-    let browser_slot = target.db.browser_slot().unwrap();
     let master = fs::read(destination.vault.join("key.bin")).unwrap();
     let export = origin.root.join("roundtrip.bagapack");
-    source.export_pack(&export, PASSWORD, &record.id, None, &Reporter::channel(None)).unwrap();
+    source.export_pack(&export, PASSWORD, &record.id, &Reporter::channel(None)).unwrap();
     let bytes = fs::read(export).unwrap();
     assert!(!bytes.windows(b"synthetic-token".len()).any(|w| w == b"synthetic-token"));
     let imported = read_pack(&bytes, PASSWORD, &destination.root).unwrap();
     assert!(!imported.stage.manifest.sources.iter().any(|s| s.path.ends_with("skills")));
-    let row = target.import_pack(imported, None, &Reporter::channel(None)).unwrap();
+    let row = target.import_pack(imported, &Reporter::channel(None)).unwrap();
     assert_ne!(row.id, record.id);
     let stage = target.load(&row).unwrap();
     assert_eq!(stage.manifest.home, destination.home);
@@ -78,7 +77,6 @@ fn portable_round_trip_relocates_and_reencrypts_without_switching_or_exporting_s
     assert_eq!(fs::read(stage.path.join(format!("data/{history}"))).unwrap(), b"synthetic-history");
     assert_ne!(row.account_key, record.account_key);
     assert_eq!(target.db.get("active").unwrap(), active);
-    assert_eq!(target.db.browser_slot().unwrap(), browser_slot);
     assert_eq!(destination.token(), "keep-live-token");
     assert_eq!(fs::read(destination.vault.join("key.bin")).unwrap(), master);
     assert!(codec::Open::new(fs::File::open(destination.vault.join(&row.archive)).unwrap(), &source.key).is_err());
@@ -88,7 +86,7 @@ fn portable_round_trip_relocates_and_reencrypts_without_switching_or_exporting_s
 fn wrong_password_tampering_truncation_and_trailing_ciphertext_do_not_import() {
     let (origin, source, row) = saved();
     let export = origin.root.join("auth.bagapack");
-    source.export_pack(&export, PASSWORD, &row.id, None, &Reporter::channel(None)).unwrap();
+    source.export_pack(&export, PASSWORD, &row.id, &Reporter::channel(None)).unwrap();
     let valid = fs::read(export).unwrap();
     assert!(read_pack(&valid, "a-different-password", &origin.root).is_err());
     for position in [0, 9, 30, 75, valid.len() - 1] {
@@ -153,7 +151,7 @@ fn export_refuses_to_overwrite_and_file_grants_are_single_use_expiring_and_kind_
     let (fixture, source, row) = saved();
     let path = fixture.root.join("中文 空格.bagapack");
     private::write(&path, b"keep-existing").unwrap();
-    assert!(source.export_pack(&path, PASSWORD, &row.id, None, &Reporter::channel(None)).is_err());
+    assert!(source.export_pack(&path, PASSWORD, &row.id, &Reporter::channel(None)).is_err());
     assert_eq!(fs::read(&path).unwrap(), b"keep-existing");
     let grants = Transfers::default();
     let ticket = grants.issue(path.clone(), Kind::Import).unwrap();
@@ -171,44 +169,51 @@ fn export_refuses_to_overwrite_and_file_grants_are_single_use_expiring_and_kind_
 fn failed_database_commit_and_duplicate_account_preserve_existing_records_files_and_browser() {
     let (origin, source, row) = saved();
     let path = origin.root.join("duplicate.bagapack");
-    source.export_pack(&path, PASSWORD, &row.id, None, &Reporter::channel(None)).unwrap();
+    source.export_pack(&path, PASSWORD, &row.id, &Reporter::channel(None)).unwrap();
     let bytes = fs::read(path).unwrap();
     let target = Fixture::new();
     let store = Store::open(&target.vault, &target.home).unwrap();
     let imported = read_pack(&bytes, PASSWORD, &target.root).unwrap();
-    let saved = store.import_pack(imported, None, &Reporter::channel(None)).unwrap();
+    let saved = store.import_pack(imported, &Reporter::channel(None)).unwrap();
     let baseline = fs::read(target.vault.join(&saved.archive)).unwrap();
     let imported = read_pack(&bytes, PASSWORD, &target.root).unwrap();
-    assert!(store.import_pack(imported, None, &Reporter::channel(None)).is_err());
+    assert!(store.import_pack(imported, &Reporter::channel(None)).is_err());
     assert_eq!(store.records().len(), 1);
     assert_eq!(fs::read(target.vault.join(saved.archive)).unwrap(), baseline);
     let another = Fixture::new();
     let fail = Store::open(&another.vault, &another.home).unwrap();
-    let active = fail.db.browser_slot().unwrap();
+    let active = fail.db.get("active").unwrap();
     fail.db.connection.execute_batch("CREATE TRIGGER reject_import BEFORE INSERT ON identity_summaries BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();
     let imported = read_pack(&bytes, PASSWORD, &another.root).unwrap();
-    assert!(fail.import_pack(imported, None, &Reporter::channel(None)).is_err());
+    assert!(fail.import_pack(imported, &Reporter::channel(None)).is_err());
     assert!(fail.records().is_empty());
-    assert_eq!(fail.db.browser_slot().unwrap(), active);
+    assert_eq!(fail.db.get("active").unwrap(), active);
     assert!(!fs::read_dir(&another.vault).unwrap().any(|e| e.unwrap().path().extension().is_some_and(|x| x == "baga")));
 }
 
 #[test]
-fn optional_browser_transfers_only_fingerprint_settings_and_never_proxy_or_login_data() {
+fn legacy_fingerprint_metadata_is_ignored_and_new_exports_have_no_browser_settings() {
     let (fixture, source, row) = saved();
-    let mut config = crate::browser::config::Config::default();
-    config.seed = 123456; config.follow_machine = false; config.language = "ja".into(); config.timezone = "Asia/Tokyo".into();
-    config.proxy = "http://private-proxy.example.invalid:8080".into();
-    let path = fixture.root.join("browser.bagapack");
-    source.export_pack(&path, PASSWORD, &row.id, Some(config), &Reporter::channel(None)).unwrap();
+    let mut legacy = metadata(&source, &row);
+    legacy.browser = Some(serde_json::json!({"seed":123456,"follow_machine":false,"language":"ja","timezone":"Asia/Tokyo","native_graphics":true}));
+    let stage = source.load(&row).unwrap();
+    let mut tar = tar::Builder::new(Vec::new());
+    append(&mut tar, Path::new("transfer.json"), &serde_json::to_vec(&legacy).unwrap()).unwrap();
+    archive::walk(&stage.path.join("data"), &stage.path, &mut |path, relative, directory| {
+        if directory { return Ok(()); }
+        append(&mut tar, relative, &fs::read(path).unwrap())
+    }).unwrap();
+    let bytes = authenticated_tar(&tar.into_inner().unwrap());
     let target = Fixture::new();
-    let imported = read_pack(&fs::read(path).unwrap(), PASSWORD, &target.root).unwrap();
-    let config = imported.browser.unwrap().config().unwrap();
-    assert_eq!(config.seed, 123456);
-    assert_eq!(config.timezone, "Asia/Tokyo");
-    assert_eq!(config.language, "ja");
-    assert!(!config.follow_machine);
-    assert!(config.proxy.is_empty());
+    let imported = read_pack(&bytes, PASSWORD, &target.root).unwrap();
+    let store = Store::open(&target.vault, &target.home).unwrap();
+    let saved = store.import_pack(imported, &Reporter::channel(None)).unwrap();
+    assert_eq!(store.records().len(), 1);
+    let path = target.root.join("identity-only.bagapack");
+    store.export_pack(&path, PASSWORD, &saved.id, &Reporter::channel(None)).unwrap();
+    assert!(serde_json::to_value(metadata(&store, &saved)).unwrap().get("browser").is_none());
+    assert_eq!(store.db.connection.query_row("SELECT COUNT(*) FROM browser_bindings", [], |r| r.get::<_,i64>(0)).unwrap(), 0);
+    assert!(!target.root.join("browser-workspaces").exists());
 }
 
 #[test]
@@ -219,7 +224,7 @@ fn gnu_long_paths_round_trip_with_a_tar_budget_that_accounts_for_all_extension_b
     store.save_current("Long path", &Policy::default(), &Reporter::channel(None)).unwrap();
     let row = store.records()[0].clone();
     let pack = fixture.root.join("long-path.bagapack");
-    store.export_pack(&pack, PASSWORD, &row.id, None, &Reporter::channel(None)).unwrap();
+    store.export_pack(&pack, PASSWORD, &row.id, &Reporter::channel(None)).unwrap();
     let decoded = read_pack(&fs::read(pack).unwrap(), PASSWORD, &fixture.root).unwrap();
     let n = decoded.stage.manifest.sources.iter().position(|source| source.path == fixture.home.join(".claude/projects")).unwrap();
     assert_eq!(fs::read(decoded.stage.path.join(format!("data/{n}" )).join("a".repeat(120)).join("b".repeat(120)).join("session.jsonl")).unwrap(), b"synthetic-long-path-history");

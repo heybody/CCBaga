@@ -125,19 +125,14 @@ fn password_key(password: &str, salt: &[u8; 32]) -> Result<Zeroizing<[u8; 32]>, 
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct BrowserSettings { seed: u32, follow_machine: bool, language: String, timezone: String, native_graphics: bool }
-impl BrowserSettings {
-    fn from_config(config: crate::browser::config::Config) -> Self {
-        Self { seed: config.seed, follow_machine: config.follow_machine, language: config.language, timezone: config.timezone, native_graphics: config.native_graphics }
-    }
-    fn config(&self) -> Result<crate::browser::config::Config, String> {
-        if self.seed == 0 || self.language.len() > 32 || self.timezone.len() > 128 || self.language.chars().chain(self.timezone.chars()).any(char::is_control) { return Err(invalid()); }
-        Ok(crate::browser::config::Config { seed: self.seed, follow_machine: self.follow_machine, language: self.language.clone(), timezone: self.timezone.clone(), native_graphics: self.native_graphics, proxy: String::new() })
-    }
+struct Metadata {
+    version: u32,
+    name: String,
+    manifest: Manifest,
+    // 旧包可能携带 B 指纹配置：仅有界解析以兼容格式，导入时忽略，新包不导出。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    browser: Option<serde_json::Value>,
 }
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Metadata { version: u32, name: String, manifest: Manifest, browser: Option<BrowserSettings> }
 fn credentials(items: &[serde_json::Value], policy: &super::Policy) -> Result<Vec<serde_json::Value>, String> {
     #[cfg(not(target_os = "macos"))]
     if !items.is_empty() { return Err(invalid()); }
@@ -177,7 +172,6 @@ fn validate_metadata(metadata: &Metadata) -> Result<(), String> {
         if !paths.insert(member_key(relative).ok_or_else(invalid)?) || !crate::cleaner::identity::allowed(&m.home, source) { return Err(invalid()); }
     }
     if m.sources.iter().any(|source| m.sources.iter().any(|parent| parent.path != source.path && parent.keys.is_empty() && source.path.starts_with(&parent.path))) { return Err(invalid()); }
-    if let Some(browser) = &metadata.browser { browser.config()?; }
     let filtered = credentials(&m.credentials, &m.policy)?;
     if filtered != m.credentials || m.account_key.is_some() || !m.plain.is_empty() { return Err(invalid()); }
     Ok(())
@@ -225,7 +219,7 @@ fn pack_data<W: Write>(tar: &mut tar::Builder<W>, stage: &Stage, reporter: &Repo
     Ok(())
 }
 impl Store {
-    pub(super) fn export_pack(&self, path: &Path, password: &str, id: &str, browser: Option<crate::browser::config::Config>, reporter: &Reporter) -> Result<(), String> {
+    pub(super) fn export_pack(&self, path: &Path, password: &str, id: &str, reporter: &Reporter) -> Result<(), String> {
         let record = self.record(id)?;
         reporter.log("transfer_validate", "running", "正在验收已保存身份。", 0, None);
         let stage = self.load(&record)?;
@@ -237,7 +231,7 @@ impl Store {
         manifest.credentials = credentials(&manifest.credentials, &manifest.policy)?;
         manifest.account_key = None;
         manifest.plain.clear();
-        let metadata = Metadata { version: 1, name: record.name, manifest, browser: browser.map(BrowserSettings::from_config) };
+        let metadata = Metadata { version: 1, name: record.name, manifest, browser: None };
         validate_metadata(&metadata)?;
         let serialized = Zeroizing::new(serde_json::to_vec(&metadata).map_err(problem)?);
         if serialized.len() as u64 > MAX_METADATA { return Err(limit()); }
@@ -276,7 +270,7 @@ impl<R: Read> Read for Budget<R> {
         Ok(read)
     }
 }
-pub(super) struct Imported { pub(super) stage: Stage, name: String, pub(super) browser: Option<BrowserSettings> }
+pub(super) struct Imported { pub(super) stage: Stage, name: String }
 fn unpack(mut file: fs::File, password: &str, parent: &Path, reporter: &Reporter) -> Result<Imported, String> {
     let mut header = [0; 44];
     file.read_exact(&mut header).map_err(|_| invalid())?;
@@ -372,13 +366,13 @@ fn unpack(mut file: fs::File, password: &str, parent: &Path, reporter: &Reporter
             }
         }
         reporter.log("transfer_validate", "ok", "迁移包已通过完整认证与范围检查。", count - 1, Some(count - 1));
-        Ok(Imported { stage: Stage { path: folder.clone(), manifest: metadata.manifest, plain_root: folder.clone() }, name: metadata.name, browser: metadata.browser })
+        Ok(Imported { stage: Stage { path: folder.clone(), manifest: metadata.manifest, plain_root: folder.clone() }, name: metadata.name })
     })();
     if result.is_err() { let _ = fs::remove_dir_all(folder); }
     result
 }
 impl Store {
-    pub(super) fn import_pack(&self, mut imported: Imported, browser: Option<(&str, u32)>, reporter: &Reporter) -> Result<Record, String> {
+    pub(super) fn import_pack(&self, mut imported: Imported, reporter: &Reporter) -> Result<Record, String> {
         let m = &mut imported.stage.manifest;
         let origin = m.home.clone();
         m.home = self.home.clone(); m.id = super::new_id()?;
@@ -413,7 +407,7 @@ impl Store {
             private::sync_parent(&destination);
             let stage = self.load(&record)?;
             reporter.log("transfer_commit", "running", "正在新增本机身份归档。", 0, None);
-            self.db.import_record(&record, &super::profile::summarize_stage(&stage), browser)?;
+            self.db.import_record(&record, &super::profile::summarize_stage(&stage))?;
             reporter.log("transfer_commit", "ok", "身份已导入；当前身份未切换。", 1, Some(1));
             Ok(record)
         })();
@@ -426,7 +420,7 @@ impl Store {
 #[path = "portable_tests.rs"]
 mod tests;
 #[tauri::command]
-pub(crate) async fn identities_export(app: tauri::AppHandle, id: String, grant: String, password: String, include_browser: bool, on_progress: Channel<Progress>) -> Result<super::State, String> {
+pub(crate) async fn identities_export(app: tauri::AppHandle, id: String, grant: String, password: String, on_progress: Channel<Progress>) -> Result<super::State, String> {
     let password = Zeroizing::new(password);
     let selection = app.state::<Transfers>().take(&grant, Kind::Export)?;
     let cleaner = app.state::<crate::cleaner::Cleaner>(); cleaner.enter()?;
@@ -435,8 +429,7 @@ pub(crate) async fn identities_export(app: tauri::AppHandle, id: String, grant: 
         let reporter = Reporter::channel(Some(on_progress));
         let result = (|| {
             let store = Store::open_for_transfer(&super::vault(&worker)?, &crate::cleaner::identity::root()?)?;
-            let browser = if include_browser { crate::browser::portable_config(&worker, &id)? } else { None };
-            store.export_pack(&selection.path, &password, &id, browser, &reporter)?;
+            store.export_pack(&selection.path, &password, &id, &reporter)?;
             super::state(&worker)
         })();
         if let Err(error) = &result { reporter.fail(error); }
@@ -460,18 +453,7 @@ pub(crate) async fn identities_import(app: tauri::AppHandle, grant: String, pass
             let imported = unpack(file, &password, &parent, &reporter)?;
             if Some(stamp(&selected_file(&selection.path)?)?) != selection.stamp { return Err("所选迁移包已变化，请重新选择。".into()); }
             let store = Store::open_for_transfer(&super::vault(&worker)?, &crate::cleaner::identity::root()?)?;
-            let slot = super::new_id()?;
-            let browser = imported.browser.as_ref().map(BrowserSettings::config).transpose()?;
-            let directory = browser.as_ref().map(|config| crate::browser::portable_prepare(&worker, &slot, config)).transpose()?;
-            let result = store.import_pack(imported, browser.as_ref().map(|c| (slot.as_str(), c.seed)), &reporter);
-            if result.is_err() {
-                if let Some(path) = directory {
-                    for name in ["config.json", "seed.owner"] { let _ = fs::remove_file(path.join(name)); }
-                    // 新槽位意外多出其他文件时保留目录，不能递归清除未知资料。
-                    let _ = fs::remove_dir(path);
-                }
-            }
-            result?;
+            store.import_pack(imported, &reporter)?;
             super::state(&worker)
         })();
         if let Err(error) = &result { reporter.fail(error); }

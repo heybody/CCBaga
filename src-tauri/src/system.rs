@@ -113,3 +113,8 @@ pub async fn system_set_region(region: String) -> Result<serde_json::Value, Stri
     })
     .await
 }
+
+#[cfg(test)]
+pub(crate) fn read_for_tests() -> serde_json::Value {
+    decode(unsafe { rf_system_read() }).unwrap()
+}

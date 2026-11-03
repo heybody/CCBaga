@@ -1,5 +1,6 @@
 # tests/
 > L2 | 父级: ../CLAUDE.md
+> local.15 身份专用版：不编译或启动 B 浏览器，不提供浏览器 IPC、指纹迁移或提示；旧 browser.enabled 在打开库时关闭，旧资料仅保留兼容，不参与身份事务。UI 测试使用 runner 系统 Chrome。
 network.html: 网络页独立 Vite 测试入口，不进入生产构建。
 network-fixture.tsx: 真实 VpsPanel 与可显式释放的虚构诊断 IPC；成功/部分失败/异常/空返回，无真实联网或导航。
 identities.html: 独立 Vite 测试入口，生产 rollup 只含 index/browser，不打包本页。

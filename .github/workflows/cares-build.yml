@@ -1,5 +1,5 @@
 # CCD Switch（原 CCBaga-A）本地维护构建：身份/前端/原生回归 + macOS arm64（debug、ad-hoc 签名）与 Windows x64 NSIS 安装包，均不含浏览器 B 引擎。
-# 浏览器引擎只在分支构建时下载，供 UI 模拟测试当无头浏览器，不打进安装包。
+# UI 回归只使用 runner 已安装的 Chrome，不下载或构建浏览器 B。
 # 推 cares/** 分支跑全部检查并上传构建产物；推 v*local.* 标签只构建并发布 Release（zip + checksums.txt），
 # 不重复跑测试——标签必须打在分支 CI 已通过的提交上。版本取 packaging/cares/local-build.json，标签须与之一致。
 # 上游 checks.yml / release.yml 在本分支已删除；本工作流不用任何签名凭据，安装与本地签名在 mbp 上做。
@@ -121,9 +121,6 @@ jobs:
           workspaces: src-tauri -> target
           shared-key: windows-msvc
           cache-on-failure: true
-      - name: 下载测试用浏览器引擎
-        if: github.ref_type != 'tag'
-        run: python scripts/fetch-browser.py
       - name: 回归测试
         if: github.ref_type != 'tag'
         shell: bash

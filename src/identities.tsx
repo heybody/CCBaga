@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 原生身份命令、保留策略、共享确认窗/进度、文件残留与 CLI 维护、定制版更新、界面语言与本机动效开关。
  * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、切换后可一键切回的提示；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
- * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复的结束进程确认按用户偏好默认勾选，仍需点击执行，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，旧关联资料由原生层兼容。
+ * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复的结束进程确认按用户偏好默认勾选，仍需点击执行，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，无浏览器 B 联动。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import {useEffect,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
@@ -176,7 +176,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
     :await invoke<IdentityState>('identities_switch', {targetId:typeof target==='object'?target.id:'empty', currentName:name.trim(), policy, recover:target==='recovery', onProgress});
    setState(next);
    setResidueRevision(value=>value+1);
-   activity.finish(true,next.browser_warning||(target==='recovery'?'原身份已恢复。':target==='save'?'当前身份已加密备份，工作区保持不变。':'身份切换完成。'));
+   activity.finish(true,(target==='recovery'?'原身份已恢复。':target==='save'?'当前身份已加密备份，工作区保持不变。':'身份切换完成。'));
    if(typeof target==='object'||target==='empty'){
     const back=previous==='empty'?(next.current.present?'empty':undefined):previous&&next.records.some(row=>row.id===previous)&&next.active!==previous?previous:undefined;
     setToast({text:typeof target==='object'?t('已切换到 {v0}',{v0:target.name}):t('已切换到空身份'),back});
@@ -191,10 +191,10 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const onProgress=activity.start('identity',target==='current'?'直接删除当前身份':'删除暂存身份');
   try {
    if(target==='current')await stop();
-   const next=await invoke<IdentityState>('identities_delete',{id:target==='current'?'current':target.id,policy,deleteBrowser:false,onProgress});
+   const next=await invoke<IdentityState>('identities_delete',{id:target==='current'?'current':target.id,policy,onProgress});
    setState(next);
    setResidueRevision(value=>value+1);
-   activity.finish(true,next.browser_warning||'所选本地身份已直接删除。');
+   activity.finish(true,'所选本地身份已直接删除。');
   } catch(e) {setError(String(e));activity.finish(false,String(e));await refreshAfterError();}
   finally {setBusy(false);}
  }
@@ -322,7 +322,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    <div className="ccd-recovery-head"><strong>{t('有一次身份切换尚未完成')}</strong><Button size="small" variant="ink" disabled={locked||loading} onClick={()=>choose('recovery')}>{t('恢复原身份')}</Button></div>
    {review==='recovery'&&confirmPanel('recovery')}
   </div>}
-  {state?.browser_warning&&<p className="ccd-alert subtle" role="status">{t(state.browser_warning)}</p>}
   <div className={`ccd-list-wrap${busy?' working':''}`}>
    <ol className="ccd-list" ref={list} aria-label={t('身份')}>{slots.map(slotView)}</ol>
   </div>

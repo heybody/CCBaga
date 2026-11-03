@@ -1,5 +1,5 @@
 // [INPUT]: 白名单身份源、SQLite 账号目录、Zstandard/旧 gzip 与认证加密流。
-// [OUTPUT]: 不可变归档代次与短期解包区、真实局部进度；仅当前快照排除默认 debug/latest 链接，通用迁移/恢复遍历仍拒绝链接，首身份复用空浏览器编号。
+// [OUTPUT]: 不可变归档代次与短期解包区、真实局部进度；仅当前快照排除默认 debug/latest 链接，通用迁移/恢复遍历仍拒绝链接，新身份分配独立编号。
 // [POS]: 保险库的数据格式边界，与 store 的工作区切换事务分离，旧 gzip 归档保持可读。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -326,17 +326,7 @@ impl Store {
         if reuse && account_key.is_none() && !(sources.is_empty() && credentials.is_empty()) {
             previous = self.db.active_unknown()?;
         }
-        // 空资料的随机编号预留给首次保存的身份，避免登录后第一次暂存又改变种子。
-        let draft = if reuse {
-            self.db.browser_draft()?
-        } else {
-            None
-        };
-        let id = previous
-            .as_ref()
-            .map(|r| r.id.clone())
-            .or(draft)
-            .unwrap_or(super::new_id()?);
+        let id = previous.as_ref().map(|r| r.id.clone()).unwrap_or(super::new_id()?);
         let generation = super::new_id()?;
         let plain = if plain {
             sources

@@ -111,39 +111,29 @@ fn version_0248_zstd_013_fixture_decodes_and_restores_with_current_library() {
 }
 
 #[test]
-fn backup_of_manually_changed_cli_identity_keeps_browser_mismatch_and_active_pointer() {
+fn backup_of_manually_changed_cli_identity_keeps_active_pointer() {
     let f = Fixture::new();
     let p = Policy::default();
     let r = Reporter::channel(None);
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
-    s.db.configure_browser(true, false, None).unwrap();
     f.login("A", "one", "a-token");
     s.switch("empty", "A", &p, &r).unwrap();
     let a = s.records()[0].id.clone();
     f.login("B", "one", "b-token");
     s.switch(&a, "B", &p, &r).unwrap();
     let b = s.records().into_iter().find(|row| row.id != a).unwrap().id;
-    let a_slot = s.db.browser_slot().unwrap();
-    let b_slot = s.db.browser_for(&b).unwrap().unwrap();
-    assert_ne!(a_slot, b_slot);
     f.login("B", "one", "b-refreshed");
     s.save_current("B backup", &p, &r).unwrap();
     assert_eq!(f.token(), "b-refreshed");
     assert_eq!(s.db.get("active").unwrap().as_deref(), Some(a.as_str()));
-    assert_eq!(s.db.browser_slot().unwrap(), a_slot);
-    assert_eq!(s.db.browser_for(&b).unwrap().unwrap(), b_slot);
     assert_eq!(
         catalog::current_id(&f.vault, &f.home, &s.db).unwrap(),
         Some(b)
     );
-    assert_eq!(
-        s.db.browser_identity(&f.vault, &f.home).unwrap().status,
-        "mismatch"
-    );
 }
 
 #[test]
-fn backup_summary_failure_keeps_previous_archive_name_and_browser_pointer() {
+fn backup_summary_failure_keeps_previous_archive_name_and_active_pointer() {
     let f = Fixture::new();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
     f.login("A", "one", "old");
@@ -151,7 +141,6 @@ fn backup_summary_failure_keeps_previous_archive_name_and_browser_pointer() {
     let r = Reporter::channel(None);
     s.save_current("old name", &p, &r).unwrap();
     let old = s.records()[0].clone();
-    let slot = s.db.browser_slot().unwrap();
     s.db.connection.execute_batch("CREATE TRIGGER reject_summary BEFORE UPDATE ON identity_summaries BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
     f.login("A", "one", "new live token");
     assert!(s.save_current("new name", &p, &r).is_err());
@@ -159,7 +148,6 @@ fn backup_summary_failure_keeps_previous_archive_name_and_browser_pointer() {
     assert_eq!(retained.archive, old.archive);
     assert_eq!(retained.name, old.name);
     assert!(f.vault.join(&old.archive).exists());
-    assert_eq!(s.db.browser_slot().unwrap(), slot);
     assert_eq!(f.token(), "new live token");
 }
 
