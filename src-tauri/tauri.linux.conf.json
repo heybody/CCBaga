@@ -32,11 +32,7 @@
           "libxss1",
           "curl"
         ],
-        "files": {
-          "/usr/share/applications/ccbaga-browser.desktop": "../browser-runtime/ccbaga-browser.desktop",
-          "/usr/share/icons/hicolor/512x512/apps/ccbaga-browser.png": "../browser-runtime/icons/icon.png",
-          "/usr/libexec/CCBaga-B/": "../browser-runtime/LinuxBrowser/"
-        }
+        "files": {}
       },
       "rpm": {
         "depends": [
@@ -52,22 +48,14 @@
           "libXScrnSaver",
           "curl"
         ],
-        "files": {
-          "/usr/share/applications/ccbaga-browser.desktop": "../browser-runtime/ccbaga-browser.desktop",
-          "/usr/share/icons/hicolor/512x512/apps/ccbaga-browser.png": "../browser-runtime/icons/icon.png",
-          "/usr/libexec/CCBaga-B/": "../browser-runtime/LinuxBrowser/"
-        },
+        "files": {},
         "compression": {
           "type": "zstd",
           "level": 3
         }
       },
       "appimage": {
-        "files": {
-          "usr/share/applications/ccbaga-browser.desktop": "../browser-runtime/ccbaga-browser.desktop",
-          "usr/share/icons/hicolor/512x512/apps/ccbaga-browser.png": "../browser-runtime/icons/icon.png",
-          "usr/libexec/CCBaga-B/": "../browser-runtime/LinuxBrowser/"
-        }
+        "files": {}
       }
     }
   }

@@ -121,3 +121,15 @@ fn identity_only_build_exposes_no_browser_commands_or_startup_hooks() {
     assert!(!identities.contains("browser_warning"));
     assert!(!identities.contains("crate::browser"));
 }
+
+#[test]
+fn identity_only_packages_have_no_browser_resources_or_build_hooks() {
+    for raw in [include_str!("../tauri.conf.json"), include_str!("../tauri.macos.conf.json"), include_str!("../tauri.windows.conf.json"), include_str!("../tauri.linux.conf.json")] {
+        let config: Value = serde_json::from_str(raw).unwrap();
+        let serialized = config.to_string();
+        assert!(!serialized.contains("browser-ui"));
+        assert!(!serialized.contains("browser-runtime"));
+        assert!(!serialized.contains("package-browser"));
+        assert!(config["bundle"]["windows"]["nsis"]["installerHooks"].is_null());
+    }
+}
