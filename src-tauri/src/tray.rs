@@ -1,5 +1,5 @@
-// [INPUT]: 前端推送的身份名称列表、界面语言与 Windows 系统栏明暗状态；不含凭据。
-// [OUTPUT]: 菜单栏菜单：身份快捷项、打开、退出；点身份只显示窗口并发出 tray-switch 事件。
+// [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言与 Windows 系统栏明暗状态；不含凭据。
+// [OUTPUT]: 菜单栏菜单：打开、身份快捷项（带额度）、退出；点身份只显示窗口并发出 tray-switch 事件。
 // [POS]: 托盘菜单边界；不直接切换身份，结束进程的授权仍由窗口内确认面板逐次取得。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use serde::Deserialize;
@@ -10,6 +10,10 @@ pub struct Entry {
     pub id: String,
     pub name: String,
     pub active: bool,
+    #[serde(default)]
+    pub five_hour: Option<u8>,
+    #[serde(default)]
+    pub seven_day: Option<u8>,
 }
 #[derive(Default)]
 pub struct TrayIdentities(pub Mutex<Vec<Entry>>);
@@ -72,6 +76,22 @@ fn clean(entries: Vec<Entry>) -> Vec<Entry> {
         .take(32)
         .collect()
 }
+fn label(entry: &Entry, en: bool) -> String {
+    let name = if entry.id == "empty" {
+        if en { "Empty identity" } else { "空身份" }
+    } else {
+        entry.name.as_str()
+    };
+    let usage: Vec<_> = [("5h", entry.five_hour), ("7d", entry.seven_day)]
+        .into_iter()
+        .filter_map(|(window, value)| value.map(|value| format!("{window} {value}%")))
+        .collect();
+    if usage.is_empty() {
+        name.to_string()
+    } else {
+        format!("{name}  ·  {}", usage.join(" / "))
+    }
+}
 pub fn menu(
     app: &tauri::AppHandle,
     language: &str,
@@ -81,24 +101,6 @@ pub fn menu(
     let entries = app.state::<TrayIdentities>().0.lock().unwrap().clone();
     let mut builder = MenuBuilder::new(app);
     let mut items: Vec<Box<dyn IsMenuItem<tauri::Wry>>> = Vec::new();
-    for entry in &entries {
-        let label = if entry.id == "empty" {
-            if en { "Empty identity".to_string() } else { "空身份".to_string() }
-        } else {
-            entry.name.clone()
-        };
-        items.push(Box::new(CheckMenuItem::with_id(
-            app,
-            format!("{SWITCH_PREFIX}{}", entry.id),
-            label,
-            !entry.active,
-            entry.active,
-            None::<&str>,
-        )?));
-    }
-    if !items.is_empty() {
-        items.push(Box::new(PredefinedMenuItem::separator(app)?));
-    }
     items.push(Box::new(MenuItem::with_id(
         app,
         "open",
@@ -106,6 +108,20 @@ pub fn menu(
         true,
         None::<&str>,
     )?));
+    items.push(Box::new(PredefinedMenuItem::separator(app)?));
+    for entry in &entries {
+        items.push(Box::new(CheckMenuItem::with_id(
+            app,
+            format!("{SWITCH_PREFIX}{}", entry.id),
+            label(entry, en),
+            !entry.active,
+            entry.active,
+            None::<&str>,
+        )?));
+    }
+    if !entries.is_empty() {
+        items.push(Box::new(PredefinedMenuItem::separator(app)?));
+    }
     items.push(Box::new(MenuItem::with_id(
         app,
         "quit",
@@ -150,12 +166,25 @@ pub fn tray_identities_set(app: tauri::AppHandle, entries: Vec<Entry>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn entry(id: &str, name: &str, active: bool) -> Entry {
+        Entry { id: id.into(), name: name.into(), active, five_hour: None, seven_day: None }
+    }
+    #[test]
+    fn label_shows_available_usage_windows() {
+        let plain = entry("a", "work", false);
+        assert_eq!(label(&plain, false), "work");
+        let both = Entry { five_hour: Some(0), seven_day: Some(9), ..plain.clone() };
+        assert_eq!(label(&both, false), "work  ·  5h 0% / 7d 9%");
+        let weekly = Entry { seven_day: Some(100), ..plain };
+        assert_eq!(label(&weekly, false), "work  ·  7d 100%");
+        assert_eq!(label(&entry("empty", "x", false), true), "Empty identity");
+    }
     #[test]
     fn clean_drops_unsafe_ids_and_bounds_names() {
         let entries = clean(vec![
-            Entry { id: "abc-1".into(), name: "a\nb".into(), active: true },
-            Entry { id: "../x".into(), name: "bad".into(), active: false },
-            Entry { id: "empty".into(), name: "x".repeat(100), active: false },
+            entry("abc-1", "a\nb", true),
+            entry("../x", "bad", false),
+            entry("empty", &"x".repeat(100), false),
         ]);
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].name, "ab");

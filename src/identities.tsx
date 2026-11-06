@@ -30,6 +30,7 @@ function organization(meta:{email?:string|null;organization?:string|null}|null|u
  const org=meta?.organization;
  return org&&meta?.email&&org===`${meta.email}'s Organization`?null:org;
 }
+const trayUsage=(usage?:PlanUsage|null)=>({five_hour:usage?.five_hour??null,seven_day:usage?.seven_day??null});
 function usageLevel(value:number){return value>=100?' full':value>=80?' high':'';}
 function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:(key:string,values?:Record<string,string|number>)=>string}){
  const minutes=Math.max(0,Math.round((now-usage.sampled_at)/60000));
@@ -63,10 +64,11 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [menu,setMenu]=useState<string|null>(null);
  const [showProcesses,setShowProcesses]=useState(false);
  const [toast,setToast]=useState<{text:string;back?:string}|null>(null);
+ const [residualOpen,setResidualOpen]=useState(false);
  const [updateOpen,setUpdateOpen]=useState(false),[update,setUpdate]=useState<{info:UpdateInfo|null;version:string}>({info:null,version:''});
  const activity=useCleanupActivity();
  const list=useRef<HTMLOListElement>(null);
- const locked=busy||cliBusy||residueBusy||!!review||!!rename||!!deletion;
+ const locked=busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
  const active=state?.records.find(row=>row.id===state.active);
  const current=state?.current;
  const saved=state?.records.filter(row=>!current?.present||row.id!==state.active)??[];
@@ -99,22 +101,31 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const frame=requestAnimationFrame(()=>document.querySelector('.slot.expanded, .ccd-recovery')?.scrollIntoView({block:'start',behavior:motionSetting.active?'smooth':'auto'}));
   return()=>cancelAnimationFrame(frame);
  },[review]);
- // ----- 菜单栏快捷切换：只同步名称列表；点选后在窗口内打开同一行内确认，结束进程仍需逐次勾选 -----
+ // ----- 菜单栏快捷切换：只同步名称与本地额度；点选后在窗口内打开同一行内确认，结束进程仍需逐次勾选 -----
  const trayPick=useRef<(id:string)=>void>(()=>{});
  trayPick.current=id=>{
   if(rowBlocked)return;
   const target:Target|undefined=id==='empty'?(current?.present===false?undefined:'empty'):saved.find(row=>row.id===id);
   if(target)choose(target);
  };
+ // 状态每 10 秒刷新一次；内容不变时不重建菜单，避免关掉用户正打开的托盘菜单。
+ const trayEntries=state?JSON.stringify([
+  ...(current?.present?[{id:active?.id||'current',name:currentName,active:true,...trayUsage(current.usage)}]:[]),
+  ...saved.map(row=>({id:row.id,name:row.name,active:false,...trayUsage(state.summaries[row.id]?.usage)})),
+  {id:'empty',name:t('空身份'),active:current?.present===false},
+ ]):'';
  useEffect(()=>{
-  if(!state)return;
-  const entries=[
-   ...(current?.present?[{id:active?.id||'current',name:currentName,active:true}]:[]),
-   ...saved.map(row=>({id:row.id,name:row.name,active:false})),
-   {id:'empty',name:t('空身份'),active:current?.present===false},
-  ];
-  void invoke('tray_identities_set',{entries}).catch(()=>{});
- },[state,currentName]);
+  if(trayEntries)void invoke('tray_identities_set',{entries:JSON.parse(trayEntries)}).catch(()=>{});
+ },[trayEntries]);
+ // ----- Claude 退出不会通知本程序：定时与窗口获得焦点时静默重读；隐藏时降到每分钟，有任务时跳过 -----
+ const quiet=useRef(false);quiet.current=locked||loading;
+ useEffect(()=>{
+  let tick=0;
+  const refresh=()=>{if(!quiet.current)void invoke<IdentityState>('identities_read').then(next=>{if(!quiet.current)setState(next);}).catch(()=>{});};
+  const timer=setInterval(()=>{tick++;if(!document.hidden||tick%6===0)refresh();},10000);
+  window.addEventListener('focus',refresh);
+  return()=>{clearInterval(timer);window.removeEventListener('focus',refresh);};
+ },[]);
  useEffect(()=>{
   let stop:(()=>void)|undefined,gone=false;
   void listen<string>('tray-switch',event=>trayPick.current(event.payload)).then(off=>{if(gone)off();else stop=off;}).catch(()=>{});
@@ -164,6 +175,13 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  }
  async function stop() {
   await invoke('identities_stop',{confirmed:stopAccepted,onProgress:activity.channel()});
+ }
+ async function stopResidual() {
+  if(busy||!stopAccepted)return;
+  setBusy(true);setError('');
+  try {setState(await invoke<IdentityState>('identities_stop_residual',{confirmed:stopAccepted}));setToast({text:t('Claude 残留已结束。')});}
+  catch(e) {setError(String(e));await refreshAfterError();}
+  finally {setResidualOpen(false);setBusy(false);}
  }
  async function change() {
   if(!review||busy||!stopAccepted)return;
@@ -228,7 +246,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  }
  const carry=state?.options?.carry_sessions??false;
  const fast=state?.options?.fast_archive??false;
- const running=loading?t('检查中'):state?.processes==null?t('进程状态未知'):state.running?t('Claude 运行中'):t('Claude 未运行');
+ const residual=!!state?.processes&&!state.main_running&&(state.processes.length>0||state.services.length>0);
+ const running=loading?t('检查中'):state?.processes==null?t('进程状态未知'):state.main_running?t('Claude 运行中'):residual?t('Claude 有残留'):t('Claude 未运行');
  const date=(value:number)=>new Date(value).toLocaleString(locale==='zh'?'zh-CN':'en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
  const confirmTitle=(target:Target)=>target==='recovery'?t('恢复原身份'):target==='save'?t(active?'更新当前身份备份':'保存当前身份备份'):target==='empty'?t('切换到空身份'):t('切换身份');
  const confirmTitle2=(target:Target)=>target==='recovery'||target==='save'?confirmTitle(target):t('切换到 {v0}',{v0:target==='empty'?t('空身份'):target.name});
@@ -310,7 +329,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <div className="ccd-titlebar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}><strong>Claude Code Desktop Switch</strong></div>
   <header className="ccd-bar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}>
-   <div className="ccd-brand"><strong>Claude Code Desktop Switch</strong><span className={`ccd-running${state?.running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span><AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
+   <div className="ccd-brand">{residual&&!loading?<button type="button" className="ccd-running residual" title={t('Claude 主进程已退出，仍有后台项在运行。点击查看。')} disabled={locked} onClick={()=>{setStopAccepted(true);setError('');setResidualOpen(true);}}><span className="ccd-running-text">{running}</span></button>:<span className={`ccd-running${state?.main_running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span>}<AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>
@@ -357,6 +376,14 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    <div className="drawer-row"><span>{t('界面语言')}</span><LanguageSwitch/></div>
    <ClaudeCliPanel blocked={locked||loading||!!state?.recovery} onBusy={setCliBusy}/>
   </SideDrawer>
+  <AppDialog alert open={residualOpen} onOpenChange={open=>{if(!open&&!busy)setResidualOpen(false);}} title={t('结束 Claude 残留')} description={t('Claude 主进程已退出，以下后台项仍在运行。')} footer={<><Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setResidualOpen(false)}>{t('取消')}</Button><Button variant="ink" disabled={busy||!stopAccepted} onClick={()=>void stopResidual()}>{t('结束残留')}</Button></>}>
+   <div className="slot-processes"><ul>
+    {state?.processes?.map(process=><li key={process.pid}><code>PID {process.pid}</code><span>{t(process.helper||process.entrypoint)}</span></li>)}
+    {state?.services.map(service=><li key={service}><code>{t('服务')}</code><span>{service}</span></li>)}
+   </ul></div>
+   {!!state?.services.length&&<p className="slot-note">{t('CoworkVMService 是开机自启的系统服务，下次开机或打开 Claude Desktop 时可能再次运行。')}</p>}
+   <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>
+  </AppDialog>
   <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted||(deletion==='current'&&!stopAccepted)} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
    {deletion==='current'&&<ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>}<div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>
   </AppDialog>

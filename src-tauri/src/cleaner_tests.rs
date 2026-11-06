@@ -243,6 +243,7 @@ fn ends_only_the_captured_disposable_process() {
         pid: child.id() as i32,
         name: "claude".into(),
         executable: executable.to_string_lossy().into_owned(),
+        helper: None,
     };
     let mismatched = ClaudeProcess {
         executable: "/wrong/claude".into(),

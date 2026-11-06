@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 固定 fork 的原生更新检查/校验下载/确认安装接口、当前版本与身份事务锁。
- * [OUTPUT]: 启动与每六小时静默检测、仅在有新版本时显示的标题栏提示、可由设置抽屉受控打开的更新窗、真实下载进度、提前确认后自动校验安装并重开应用。
+ * [OUTPUT]: 启动与每六小时静默检测、仅在有新版本时显示的标题栏提示、可由设置抽屉受控打开并立即检查的更新窗、真实下载进度、提前确认后自动校验安装并重开应用、跳转 GitHub 发布页手动更新。
  * [POS]: 定制版更新入口；只在用户确认时关闭 CCD Switch，不结束 Claude 进程。
  */
 import {Channel,invoke} from '@tauri-apps/api/core';
@@ -30,6 +30,8 @@ export function AppUpdate({blocked,open:controlled,onOpenChange,onInfo}:{blocked
   check();const timer=setInterval(check,6*60*60*1000);
   return()=>{live=false;clearInterval(timer);};
  },[]);
+ // ----- 从设置打开时立即检查；已知有新版本时不再重复请求 -----
+ useEffect(()=>{if(open&&!info?.available&&!phase)void check();},[open]);
  async function check(){setPhase('check');setError('');try{setInfo(await invoke<Info>('local_update_check'));}catch(e){setError(String(e));}finally{setPhase(null);}}
  async function startInstall(){setPhase('install');await invoke('local_update_install',{confirmed:true});}
  async function download(){
@@ -45,6 +47,7 @@ export function AppUpdate({blocked,open:controlled,onOpenChange,onInfo}:{blocked
   {info?.available&&<button type="button" className="update-pill" disabled={blocked} onClick={()=>{setAccepted(true);setOpen(true);}}>{t('发现新版本 {v0}',{v0:info.latest})}</button>}
   <AppDialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}} title={t('定制版更新')} description={t('点击后下载并校验更新，随后自动安装并重新打开 CCD Switch。')} footer={<>
    <Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setOpen(false)}>{t('取消')}</Button>
+   <Button variant="secondary" onClick={()=>void invoke('local_release_open').catch(e=>setError(String(e)))}>{t('前往 GitHub 手动更新')}</Button>
    <Button variant="secondary" disabled={busy||blocked} onClick={()=>void check()}>{t('检查更新')}</Button>
    {!ready&&info?.available&&info.supported&&<Button variant="ink" disabled={busy||blocked||!accepted} onClick={()=>void download()}>{t('下载并自动安装')}</Button>}
    {ready&&<Button variant="ink" disabled={busy||blocked||!accepted} onClick={()=>void install()}>{t('重试安装')}</Button>}

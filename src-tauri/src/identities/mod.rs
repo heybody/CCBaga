@@ -81,6 +81,8 @@ pub struct State {
     pub active: String,
     pub recovery: Option<String>,
     pub running: bool,
+    pub main_running: bool,
+    pub services: Vec<String>,
     pub current: profile::Current,
     pub options: Options,
 }
@@ -135,9 +137,12 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
     }
     let mut current = profile::read(&root_path);
     current.usage = current.org.as_ref().and_then(|org| usage.get(org)).cloned();
-    let (processes, processes_truncated) =
-        profile::process_previews(crate::cleaner::identity::running_processes());
+    let found = crate::cleaner::identity::running_processes();
     // 检查失败显示未知；不能把查询错误当作已确认停止。
+    let main_running = found
+        .as_ref()
+        .map_or(true, |rows| rows.iter().any(|row| row.helper.is_none()));
+    let (processes, processes_truncated) = profile::process_previews(found);
     let running = processes.as_ref().is_none_or(|rows| !rows.is_empty());
     Ok(State {
         records,
@@ -148,6 +153,8 @@ fn state(app: &tauri::AppHandle) -> Result<State, String> {
             .unwrap_or_else(|| "current".into()),
         recovery: db.get("recovery")?,
         running,
+        main_running,
+        services: crate::cleaner::background_services(),
         current,
         options: Options {
             carry_sessions: db.flag("carry_sessions")?,
@@ -206,6 +213,33 @@ pub async fn identities_stop(
     .map_err(|_| "结束进程被中断，请刷新。".to_string())
     .and_then(|r| r)
     .map(|_| ());
+    cleaner.leave();
+    result
+}
+/// 主进程已退出时结束遗留的后台进程与服务；确认后主进程又打开则拒绝，不结束用户正在用的 Claude。
+#[tauri::command]
+pub async fn identities_stop_residual(
+    app: tauri::AppHandle,
+    confirmed: Option<bool>,
+) -> Result<State, String> {
+    if confirmed != Some(true) {
+        return Err("未明确同意结束 Claude 残留；未执行操作。".into());
+    }
+    let cleaner = app.state::<crate::cleaner::Cleaner>();
+    cleaner.enter()?;
+    let worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let found = crate::cleaner::identity::running_processes()?;
+        if found.iter().any(|row| row.helper.is_none()) {
+            return Err("Claude 主进程正在运行，未结束残留。".to_string());
+        }
+        crate::cleaner::stop_processes()?;
+        crate::cleaner::stop_background_services()?;
+        state(&worker)
+    })
+    .await
+    .map_err(|_| "结束残留被中断，请刷新。".to_string())
+    .and_then(|r| r);
     cleaner.leave();
     result
 }

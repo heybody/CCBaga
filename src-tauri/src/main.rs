@@ -150,6 +150,7 @@ fn main() {
             cleaner::residue::claude_residue_clean,
             identities::identities_read,
             identities::identities_stop,
+            identities::identities_stop_residual,
             identities::identities_save,
             identities::identities_options,
             identities::identities_switch,

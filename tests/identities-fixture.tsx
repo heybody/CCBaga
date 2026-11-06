@@ -17,7 +17,7 @@ import '../src/style.css';
 const id=(number:number)=>number.toString(16).padStart(32,'0');
 const user={present:true,display_name:'Fixture user',email:'fixture@example.invalid',organization:'Fixture team',plan:'Pro',auth_status:'local_unexpired',expires_at:Date.now()+3600000,usage:{five_hour:32,seven_day:61,sampled_at:Date.now()-7200000},unavailable:false};
 const summaries=Object.fromEntries(Array.from({length:40},(_,n)=>[id(n+1),{email:`user${n+1}@example.invalid`,organization:`Org ${n+1}`,plan:n%2===0?'Max 20x':'Pro',auth_status:'local_unexpired',expires_at:Date.now()+3600000,...(n===1?{usage:{five_hour:100,seven_day:84,sampled_at:Date.now()-300000}}:{})}]));
-const state:IdentityState={active:id(1),recovery:null,running:true,processes:[{pid:4201,workspace:null,entrypoint:'VS Code'}],processes_truncated:false,current:{...user},options:{carry_sessions:false,fast_archive:false},summaries,records:Array.from({length:40},(_,n)=>({id:id(n+1),name:`Identity ${n+1}`,saved_at:1780000000000+n,bytes:2048,policy:{...defaultPolicy}}))};
+const state:IdentityState={active:id(1),recovery:null,running:true,main_running:true,services:[],processes:[{pid:4201,workspace:null,entrypoint:'VS Code'}],processes_truncated:false,current:{...user},options:{carry_sessions:false,fast_archive:false},summaries,records:Array.from({length:40},(_,n)=>({id:id(n+1),name:`Identity ${n+1}`,saved_at:1780000000000+n,bytes:2048,policy:{...defaultPolicy}}))};
 const commands:{command:string;args:any}[]=[];
 let fail='';
 let identityReads=0;
@@ -87,7 +87,8 @@ function execute(command:string,args:any){
  if(command==='ui_language_write')return null;
  if(command==='plugin:app|version')return '0.2.50+local.10';
  if(command==='local_update_check')return {current:'0.2.50+local.10',latest:'0.2.50+local.10',available:false,supported:true};
- if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.processes=[];return {running:false};}
+ if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.main_running=false;state.processes=[];return {running:false};}
+ if(command==='identities_stop_residual'){if(args.confirmed!==true)throw Error('missing explicit residual stop consent');state.running=false;state.processes=[];state.services=[];return structuredClone(state);}
  if(command==='identities_save'){
   const existing=state.records.find(row=>row.id===state.active);
   if(existing){existing.name=args.currentName;existing.saved_at=1780000010000+commands.length;existing.policy={...args.policy};}

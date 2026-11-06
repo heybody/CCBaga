@@ -138,6 +138,8 @@ pub struct ProcessPreview {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
     pub entrypoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub helper: Option<String>,
 }
 fn display(value: Option<String>, limit: usize) -> Option<String> {
     value
@@ -415,6 +417,7 @@ pub fn process_previews(
             // PID 不能证明会话索引属于这次进程；不读取旧 sessions 文件猜测工作区。
             workspace: None,
             entrypoint: display(Some(proc.name), 48).unwrap_or_else(|| "Claude".into()),
+            helper: proc.helper.map(str::to_owned),
         })
         .collect();
     (Some(out), truncated)
@@ -520,6 +523,7 @@ mod tests {
                 pid: n + 10,
                 name: "Claude Desktop".into(),
                 executable: "private-command-token".into(),
+                helper: None,
                 #[cfg(windows)]
                 created: 1,
             })

@@ -8,6 +8,8 @@ export async function testAppUpdate(browser:Browser,base:string){
  try {
   await open();let dialog=page.getByRole('dialog');
   assert.match(await dialog.innerText(),/0.2.50\+local.12/);
+  await dialog.getByRole('button',{name:'前往 GitHub 手动更新',exact:true}).click();
+  assert.equal(await page.evaluate(()=>(window as any).updateFixture.commands.filter((c:any)=>c.command==='local_release_open').length),1);
   assert.equal(await dialog.getByRole('checkbox').isChecked(),true);
   await dialog.getByRole('checkbox').uncheck();assert.equal(await dialog.getByRole('button',{name:'下载并自动安装',exact:true}).isDisabled(),true);
   await dialog.getByRole('button',{name:'取消',exact:true}).click();assert.equal(await installs(),0);
@@ -32,6 +34,6 @@ export async function testAppUpdate(browser:Browser,base:string){
   await dialog.getByRole('button',{name:'重试安装',exact:true}).waitFor();assert.equal(await installs(),1);
   await dialog.getByRole('button',{name:'重试安装',exact:true}).click();await page.waitForFunction(()=>(window as any).updateFixture.commands.filter((c:any)=>c.command==='local_update_install').length===2);
   assert.equal(await page.evaluate(()=>(window as any).updateFixture.commands.filter((c:any)=>c.command==='local_update_download').length),2);
-  return 10;
+  return 11;
  }finally{await context.close();}
 }

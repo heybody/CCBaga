@@ -40,3 +40,5 @@ Windows local.8：desktop_roots 纳入 Claude-Data/claude_pzs8sxrjxfjjc，内置
 local_update.rs: 固定 heybody/CCBaga Release 列表，比较 local 构建数字，忽略缺少 Windows 安装器/校验文件的发布；限域 HTTPS 下载、私有原生路径与两次 SHA-256 核验、事务锁和显式确认安装，不接收 URL/文件路径，不结束 Claude。
 
 local.13：local_update.rs 以下载流实际字节数/Content-Length 发送 Channel 进度，分检查/下载/校验；复核包后以 NSIS /P /R /UPDATE 自动安装及重开本程序，不结束 Claude。原生测试用回环合成 HTTP 验证真实进度、有/无长度与超限拒绝。
+
+local.16：ClaudeProcess.helper 区分主进程与后台项（Desktop `--type=` 子进程、Claude-Data 内置 CLI、Native Host、cowork-svc、SSH 辅助程序），只带固定显示名，路径仍不送 UI；用户自装 CLI 与读不到参数的 Claude.exe 按主进程算。windows_process.rs 经服务管理器读取并停止 LocalSystem 的 CoworkVMService（进程枚举的 SID 过滤看不到它；服务 DACL 允许已登录用户启停，不提权）。tray.rs 菜单顺序改为打开、身份（带本地 5h/7d）、退出。

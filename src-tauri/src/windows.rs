@@ -20,7 +20,10 @@ use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken}
 #[path = "windows_process.rs"]
 mod processes;
 pub(crate) use processes::ChildJob;
-pub use processes::{claude_processes, kill_process, rf_browser_quit, rf_browser_running};
+pub use processes::{
+    background_services, claude_processes, kill_process, rf_browser_quit, rf_browser_running,
+    stop_background_services,
+};
 use windows_sys::Win32::UI::Shell::ShellExecuteW;
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 

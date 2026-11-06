@@ -416,6 +416,9 @@ pub struct ClaudeProcess {
     #[serde(skip)]
     #[allow(dead_code)]
     pub executable: String,
+    /// 主进程退出后可能遗留的后台项及其固定显示名；None 为主进程或用户自己启动的 CLI。
+    #[serde(skip)]
+    pub helper: Option<&'static str>,
     #[cfg(windows)]
     #[serde(skip)]
     pub created: u64,
@@ -469,6 +472,7 @@ fn process_row(line: &str, desktop: &[i32], uid: u32) -> Option<ClaudeProcess> {
             name.into()
         },
         executable,
+        helper: None,
     })
 }
 #[cfg(target_os = "macos")]
@@ -671,6 +675,22 @@ pub(crate) fn stop_processes() -> Result<usize, String> {
         return Err("仍有 Claude 进程在运行。".into());
     }
     Ok(targets.len())
+}
+#[cfg(target_os = "windows")]
+pub(crate) fn background_services() -> Vec<String> {
+    crate::windows::background_services()
+}
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn background_services() -> Vec<String> {
+    Vec::new()
+}
+#[cfg(target_os = "windows")]
+pub(crate) fn stop_background_services() -> Result<(), String> {
+    crate::windows::stop_background_services()
+}
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn stop_background_services() -> Result<(), String> {
+    Ok(())
 }
 #[tauri::command]
 pub async fn cleaner_stop(app: tauri::AppHandle) -> Result<Scan, String> {

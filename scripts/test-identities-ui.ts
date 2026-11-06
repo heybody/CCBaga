@@ -42,6 +42,23 @@ try{
  assert.equal(await page.getByText(/浏览器未能重开|关联浏览器|browser fingerprint/i).count(),0);
  assert.equal(await page.evaluate(()=>Object.keys((window as any).identityFixture.state).some(key=>key.startsWith('browser'))),false);checks++;
 
+ // ----- 主进程退出后状态变为有残留，点击确认才结束；Claude 运行时不显示入口 -----
+ assert.equal(await page.getByRole('button',{name:'Claude 有残留',exact:true}).count(),0);
+ const processesBefore=await page.evaluate(()=>{const s=(window as any).identityFixture.state,old=s.processes;s.main_running=false;s.services=['CoworkVMService'];s.processes=[{pid:5001,workspace:null,entrypoint:'Claude Desktop',helper:'chrome-native-host.exe'}];return old;});
+ await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.getByRole('button',{name:'Claude 有残留',exact:true}).click();
+ const residualDialog=page.getByRole('alertdialog');
+ assert.match(await residualDialog.innerText(),/chrome-native-host\.exe[\s\S]*CoworkVMService/);
+ await residualDialog.getByRole('button',{name:'取消',exact:true}).click();
+ assert.equal(await fixtureCommands('identities_stop_residual'),0);checks++;
+ await page.getByRole('button',{name:'Claude 有残留',exact:true}).click();
+ await residualDialog.getByRole('button',{name:'结束残留',exact:true}).click();
+ await page.getByText('Claude 未运行',{exact:true}).waitFor();
+ assert.equal(await fixtureCommands('identities_stop_residual'),1);checks++;
+ await page.evaluate(processes=>{Object.assign((window as any).identityFixture.state,{running:true,main_running:true,processes});},processesBefore);
+ await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.getByText('Claude 运行中',{exact:true}).waitFor();
+
  // ----- 插槽列表：当前身份置顶高亮，暂存身份全部列出，空身份固定最后 -----
  assert.equal(await slots.count(),41);
  assert.equal(await slots.first().getAttribute('data-slot'),'current');assert.equal(await slots.last().getAttribute('data-slot'),'empty');

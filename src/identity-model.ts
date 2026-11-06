@@ -9,13 +9,13 @@ export type Identity={id:string;name:string;saved_at:number;bytes:number;policy:
 /** 桌面 App 本地用量样本（百分比与采样毫秒时间），只读、非实时。 */
 export type PlanUsage={five_hour?:number;seven_day?:number;sampled_at:number};
 export type IdentitySummary={display_name?:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null;usage?:PlanUsage|null};
-export type ProcessPreview={pid:number;entrypoint:string;workspace:string|null};
+export type ProcessPreview={pid:number;entrypoint:string;workspace:string|null;helper?:string|null};
 export type CurrentIdentity={present:boolean;desktop_present?:boolean;display_name:string|null;email:string|null;organization:string|null;plan:string|null;auth_status:string|null;expires_at?:number|null;usage?:PlanUsage|null;unavailable:boolean};
 export function currentAccountMessage(current:CurrentIdentity|undefined):string {
  if(current?.unavailable)return '账号信息暂不可读';
  return current?.desktop_present?'检测到 Desktop 本地资料；账号请在客户端确认':'未读取到 Code 账号邮箱；不代表未登录';
 }
-export type IdentityState={records:Identity[];summaries:Record<string,IdentitySummary>;active:string;recovery:string|null;running:boolean;processes:ProcessPreview[]|null;processes_truncated:boolean;current:CurrentIdentity;options:IdentityOptions};
+export type IdentityState={records:Identity[];summaries:Record<string,IdentitySummary>;active:string;recovery:string|null;running:boolean;main_running:boolean;services:string[];processes:ProcessPreview[]|null;processes_truncated:boolean;current:CurrentIdentity;options:IdentityOptions};
 // 本地维护开关：会话留在工作区并带入新账号；快速切换用 zstd 最快档。
 export type IdentityOptions={carry_sessions:boolean;fast_archive:boolean};
 export const defaultPolicy:IdentityPolicy={skills:true,plugins:true,mcp:true,settings:true,projects:true,history:false,cache:false};

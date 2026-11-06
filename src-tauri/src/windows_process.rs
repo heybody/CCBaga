@@ -1,5 +1,5 @@
 // [INPUT]: Win32 Toolhelp/进程句柄、当前用户 SID、精确 CLI 入口与独立浏览器资料路径。
-// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI、独立 Native Host）精确进程与句柄复核后的结束；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
+// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI、独立 Native Host）精确进程与句柄复核后的结束，主进程/后台项分类，CoworkVMService 状态读取与停止；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
 // [POS]: Windows 进程边界；参数仅用于原生判定，不返回 UI；不对其他用户或名称相似的程序执行终止。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{current_sid, input, process_sid, response};
@@ -18,6 +18,11 @@ use windows_sys::Win32::{
                 CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
                 TH32CS_SNAPPROCESS,
             },
+        },
+        Services::{
+            CloseServiceHandle, ControlService, OpenSCManagerW, OpenServiceW, QueryServiceStatus,
+            SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_CONTROL_STOP, SERVICE_QUERY_STATUS,
+            SERVICE_STATUS, SERVICE_STOP, SERVICE_STOPPED,
         },
         Threading::{
             GetExitCodeProcess, GetProcessTimes, IsWow64Process, OpenProcess,
@@ -292,6 +297,25 @@ fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
     }
     None
 }
+// Desktop 的子进程、连接器和内置 CLI 不该比主进程活得久；用户自己装的 CLI 不算后台项。
+fn helper_label(image: &str, args: &[String]) -> Option<&'static str> {
+    let path = normalized(image);
+    let name = path.rsplit('\\').next()?;
+    let fixed = [
+        "cowork-svc.exe",
+        "chrome-native-host.exe",
+        "claude-ssh-askpass.exe",
+        "claude-ssh-proxy.exe",
+    ];
+    if let Some(label) = fixed.into_iter().find(|label| *label == name) {
+        return Some(label);
+    }
+    if path.contains("\\claude-data\\claude_pzs8sxrjxfjjc\\claude-code\\") {
+        return Some("Desktop 内置 Claude Code");
+    }
+    (name == "claude.exe" && args.iter().skip(1).any(|arg| arg.starts_with("--type=")))
+        .then_some("Claude Desktop 子进程")
+}
 fn version_name(name: &str) -> bool {
     let name = name.strip_suffix(".exe").unwrap_or(name);
     let parts: Vec<_> = name.split('.').collect();
@@ -352,6 +376,7 @@ pub fn claude_processes() -> Result<Vec<ClaudeProcess>, String> {
             found.push(ClaudeProcess {
                 pid: pid as i32,
                 name: kind.into(),
+                helper: helper_label(&image, &args),
                 executable: image,
                 created,
             });
@@ -377,6 +402,63 @@ pub fn kill_process(target: &ClaudeProcess) -> Result<(), String> {
         return Err("无法终止已核验的 Claude 进程。".into());
     }
     Ok(())
+}
+// Cowork 服务以 LocalSystem 运行，进程枚举的本人 SID 过滤看不到，只能经服务管理器查询；
+// 其 DACL 允许已登录用户启停，不需要提权。
+const COWORK_SERVICE: &str = "CoworkVMService";
+struct Service(SC_HANDLE);
+impl Drop for Service {
+    fn drop(&mut self) {
+        unsafe {
+            CloseServiceHandle(self.0);
+        }
+    }
+}
+impl Service {
+    fn open(access: u32) -> Option<Self> {
+        let name: Vec<u16> = COWORK_SERVICE.encode_utf16().chain(Some(0)).collect();
+        unsafe {
+            let manager = OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT);
+            if manager.is_null() {
+                return None;
+            }
+            let manager = Self(manager);
+            let service = OpenServiceW(manager.0, name.as_ptr(), access);
+            (!service.is_null()).then_some(Self(service))
+        }
+    }
+    fn stopped(&self) -> Option<bool> {
+        let mut status = unsafe { std::mem::zeroed::<SERVICE_STATUS>() };
+        (unsafe { QueryServiceStatus(self.0, &mut status) } != 0)
+            .then_some(status.dwCurrentState == SERVICE_STOPPED)
+    }
+}
+/// 未安装或无法查询时返回空：这里只用于显示残留，不作为切换身份的前提。
+pub fn background_services() -> Vec<String> {
+    Service::open(SERVICE_QUERY_STATUS)
+        .and_then(|service| service.stopped())
+        .is_some_and(|stopped| !stopped)
+        .then(|| COWORK_SERVICE.to_string())
+        .into_iter()
+        .collect()
+}
+pub fn stop_background_services() -> Result<(), String> {
+    if background_services().is_empty() {
+        return Ok(());
+    }
+    let service = Service::open(SERVICE_STOP | SERVICE_QUERY_STATUS)
+        .ok_or("没有权限停止 CoworkVMService 服务。")?;
+    let mut status = unsafe { std::mem::zeroed::<SERVICE_STATUS>() };
+    if unsafe { ControlService(service.0, SERVICE_CONTROL_STOP, &mut status) } == 0 {
+        return Err("无法停止 CoworkVMService 服务。".into());
+    }
+    for _ in 0..50 {
+        if service.stopped() == Some(true) {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("CoworkVMService 服务未在 10 秒内停止。".into())
 }
 fn browser_unknown() -> String {
     "无法确认浏览器进程的资料归属，未操作资料。".into()
@@ -720,6 +802,32 @@ mod tests {
         }
         assert!(current_sid().is_some());
         assert!(Handle::open(std::process::id(), false).is_some());
+    }
+
+    #[test]
+    fn helpers_are_separated_from_main_processes() {
+        let local = r"C:\Users\u\AppData\Local";
+        let app = r"C:\Program Files\WindowsApps\Claude_4.1.0.0_x64__pzs8sxrjxfjjc\app\Claude.exe";
+        let renderer = [app.to_string(), "--type=renderer".to_string()];
+        assert_eq!(helper_label(app, &[app.to_string()]), None);
+        assert_eq!(helper_label(app, &[]), None);
+        assert_eq!(helper_label(app, &renderer), Some("Claude Desktop 子进程"));
+        assert_eq!(
+            helper_label(
+                &format!(r"{local}\Claude-Data\claude_pzs8sxrjxfjjc\claude-code\2.1.3\9078b9c1d466\claude.exe"),
+                &[]
+            ),
+            Some("Desktop 内置 Claude Code")
+        );
+        assert_eq!(
+            helper_label(
+                &format!(r"{local}\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude-NativeHost\4.1.0\chrome-native-host.exe"),
+                &[]
+            ),
+            Some("chrome-native-host.exe")
+        );
+        assert_eq!(helper_label(r"C:\Users\u\.local\bin\claude.exe", &[]), None);
+        assert_eq!(helper_label(r"C:\Program Files\nodejs\node.exe", &[]), None);
     }
 
     #[test]
