@@ -1,5 +1,5 @@
 // [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言与 Windows 系统栏明暗状态；不含凭据。
-// [OUTPUT]: 菜单栏菜单：打开、身份快捷项（下方一行不可点的额度）、退出；点身份只显示窗口并发出 tray-switch 事件。
+// [OUTPUT]: 菜单栏菜单：打开、身份快捷项（名称与 5h 同行，下一行不可点的 7d）、退出；点身份只显示窗口并发出 tray-switch 事件。
 // [POS]: 托盘菜单边界；不直接切换身份，结束进程的授权仍由窗口内确认面板逐次取得。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use serde::Deserialize;
@@ -88,14 +88,20 @@ fn label(entry: &Entry, en: bool) -> String {
         entry.name.clone()
     }
 }
-fn usage_label(entry: &Entry) -> Option<String> {
-    let usage: Vec<_> = [("5h", entry.five_hour), ("7d", entry.seven_day)]
+fn usage_lines(entry: &Entry) -> Vec<String> {
+    [("5h", entry.five_hour), ("7d", entry.seven_day)]
         .into_iter()
         .filter_map(|(window, value)| {
             value.map(|value| format!("{window} {} {value}%", usage_bar(value)))
         })
-        .collect();
-    (!usage.is_empty()).then(|| usage.join("   "))
+        .collect()
+}
+/// 制表符让额度落在菜单右侧同一列，名称长短不同时进度条仍对齐。
+fn menu_lines(entry: &Entry, en: bool) -> Vec<String> {
+    let name = label(entry, en);
+    let mut usage = usage_lines(entry).into_iter();
+    let first = usage.next().map_or(name.clone(), |line| format!("{name}	{line}"));
+    std::iter::once(first).chain(usage.map(|line| format!("	{line}"))).collect()
 }
 pub fn menu(
     app: &tauri::AppHandle,
@@ -115,19 +121,20 @@ pub fn menu(
     )?));
     items.push(Box::new(PredefinedMenuItem::separator(app)?));
     for entry in &entries {
+        let lines = menu_lines(entry, en);
         items.push(Box::new(CheckMenuItem::with_id(
             app,
             format!("{SWITCH_PREFIX}{}", entry.id),
-            label(entry, en),
+            &lines[0],
             !entry.active,
             entry.active,
             None::<&str>,
         )?));
-        if let Some(usage) = usage_label(entry) {
+        for (index, line) in lines.iter().enumerate().skip(1) {
             items.push(Box::new(MenuItem::with_id(
                 app,
-                format!("usage:{}", entry.id),
-                usage,
+                format!("usage:{index}:{}", entry.id),
+                line,
                 false,
                 None::<&str>,
             )?));
@@ -186,13 +193,11 @@ mod tests {
     #[test]
     fn label_shows_available_usage_windows() {
         let plain = entry("a", "work", false);
-        assert_eq!(label(&plain, false), "work");
-        assert_eq!(usage_label(&plain), None);
+        assert_eq!(menu_lines(&plain, false), ["work"]);
         let both = Entry { five_hour: Some(0), seven_day: Some(9), ..plain.clone() };
-        assert_eq!(label(&both, false), "work");
-        assert_eq!(usage_label(&both).unwrap(), "5h ▱▱▱▱▱ 0%   7d ▰▱▱▱▱ 9%");
+        assert_eq!(menu_lines(&both, false), ["work	5h ▱▱▱▱▱ 0%", "	7d ▰▱▱▱▱ 9%"]);
         let weekly = Entry { seven_day: Some(100), ..plain };
-        assert_eq!(usage_label(&weekly).unwrap(), "7d ▰▰▰▰▰ 100%");
+        assert_eq!(menu_lines(&weekly, false), ["work	7d ▰▰▰▰▰ 100%"]);
         assert_eq!(label(&entry("empty", "x", false), true), "Empty identity");
     }
     #[test]

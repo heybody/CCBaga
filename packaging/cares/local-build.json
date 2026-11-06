@@ -1,5 +1,5 @@
 {
-  "version": "0.2.50+local.18",
+  "version": "0.2.50+local.19",
   "build": {"beforeBuildCommand": "bun run build"},
   "bundle": {
     "macOS": {"signingIdentity": "-"},

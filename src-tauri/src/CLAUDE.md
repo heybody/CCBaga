@@ -45,4 +45,4 @@ local.16：ClaudeProcess.helper 区分主进程与后台项（Desktop `--type=` 
 
 local.17：tray.rs 的 usage_bar 把额度画成 5 格文字进度条，向上取整。
 
-local.18：托盘每个身份占两项，名称后跟一项不可点的额度（usage_label）。
+local.19：托盘每个身份共两行，名称与 5h 同行，7d 为下一行不可点项；menu_lines 用制表符让额度同列对齐。
