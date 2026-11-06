@@ -42,6 +42,22 @@ try{
  assert.equal(await page.getByText(/浏览器未能重开|关联浏览器|browser fingerprint/i).count(),0);
  assert.equal(await page.evaluate(()=>Object.keys((window as any).identityFixture.state).some(key=>key.startsWith('browser'))),false);checks++;
 
+ // ----- 额度过期：当前身份提示去 Claude 更新，Claude 未运行时改提示打开；其他身份只变灰 -----
+ const setUsage=(age:number,running:boolean)=>page.evaluate(([age,running])=>{const s=(window as any).identityFixture.state;s.current.usage.sampled_at=Date.now()-(age as number);s.summaries[Object.keys(s.summaries)[1]].usage.sampled_at=Date.now()-(age as number);s.main_running=running;},[age,running]);
+ const usageBefore=await page.evaluate(()=>{const s=(window as any).identityFixture.state;return [s.current.usage.sampled_at,s.summaries[Object.keys(s.summaries)[1]].usage.sampled_at];});
+ assert.equal(await page.locator('.slot-hint').count(),0);
+ await setUsage(8*3600000,true);
+ await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.getByText('额度不是最新的，点一下 Claude 托盘图标刷新',{exact:true}).waitFor();
+ assert.equal(await page.locator('.slot-hint').count(),1);
+ assert.ok(await page.locator('.slot-usage.stale').count()>=2);checks++;
+ await setUsage(8*3600000,false);
+ await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.getByText('额度不是最新的，打开 Claude 刷新',{exact:true}).waitFor();checks++;
+ await page.evaluate(([current,saved])=>{const s=(window as any).identityFixture.state;s.current.usage.sampled_at=current;s.summaries[Object.keys(s.summaries)[1]].usage.sampled_at=saved;s.main_running=true;},usageBefore);
+ await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.locator('.slot-hint').waitFor({state:'detached'});
+
  // ----- 主进程退出后状态变为有残留，点击确认才结束；Claude 运行时不显示入口 -----
  assert.equal(await page.getByRole('button',{name:'Claude 有残留',exact:true}).count(),0);
  const processesBefore=await page.evaluate(()=>{const s=(window as any).identityFixture.state,old=s.processes;s.main_running=false;s.services=['CoworkVMService'];s.processes=[{pid:5001,workspace:null,entrypoint:'Claude Desktop',helper:'chrome-native-host.exe'}];return old;});

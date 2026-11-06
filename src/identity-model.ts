@@ -18,6 +18,14 @@ export function currentAccountMessage(current:CurrentIdentity|undefined):string 
 export type IdentityState={records:Identity[];summaries:Record<string,IdentitySummary>;active:string;recovery:string|null;running:boolean;main_running:boolean;services:string[];processes:ProcessPreview[]|null;processes_truncated:boolean;current:CurrentIdentity;options:IdentityOptions};
 // 本地维护开关：会话留在工作区并带入新账号；快速切换用 zstd 最快档。
 export type IdentityOptions={carry_sessions:boolean;fast_archive:boolean};
+/** 样本超过一个 5 小时窗口后，百分比可能已重置；文件里没有重置时间，只能按采样时间判断。 */
+const USAGE_STALE_MS=5*60*60*1000;
+export const usageStale=(usage:PlanUsage,now:number)=>now-usage.sampled_at>USAGE_STALE_MS;
+/** 只有当前登录账号会被 Claude 重新采样，其他身份不给操作提示；进程状态未知时不说 Claude 没开。 */
+export function usageRefreshHint(usage:PlanUsage|null|undefined,now:number,current:boolean,mainRunning:boolean|null):string|null {
+ if(!current||!usage||!usageStale(usage,now))return null;
+ return mainRunning===false?'额度不是最新的，打开 Claude 刷新':'额度不是最新的，点一下 Claude 托盘图标刷新';
+}
 export const defaultPolicy:IdentityPolicy={skills:true,plugins:true,mcp:true,settings:true,projects:true,history:false,cache:false};
 export const policyRows:readonly [keyof IdentityPolicy,string][]=[['skills','Skills 与命令'],['plugins','插件'],['mcp','MCP 配置'],['settings','个人设置'],['projects','项目记录'],['history','会话历史'],['cache','缓存与日志']];
 

@@ -5,7 +5,18 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import {test,expect} from 'bun:test';
-import {credentialStatus,currentAccountMessage,type CurrentIdentity} from './identity-model';
+import {credentialStatus,currentAccountMessage,usageRefreshHint,usageStale,type CurrentIdentity} from './identity-model';
+test('额度超过 5 小时才算过期，操作提示只给当前身份',()=>{
+ const hours=3600000,usage={five_hour:10,sampled_at:0};
+ expect(usageStale(usage,5*hours)).toBe(false);
+ expect(usageStale(usage,5*hours+1)).toBe(true);
+ expect(usageRefreshHint(usage,5*hours,true,true)).toBeNull();
+ expect(usageRefreshHint(usage,6*hours,false,true)).toBeNull();
+ expect(usageRefreshHint(null,6*hours,true,true)).toBeNull();
+ expect(usageRefreshHint(usage,6*hours,true,true)).toBe('额度不是最新的，点一下 Claude 托盘图标刷新');
+ expect(usageRefreshHint(usage,6*hours,true,null)).toBe('额度不是最新的，点一下 Claude 托盘图标刷新');
+ expect(usageRefreshHint(usage,6*hours,true,false)).toBe('额度不是最新的，打开 Claude 刷新');
+});
 test('状态只表示可信本地元数据，到期不会继续显示未过期',()=>{
  expect(credentialStatus(null,100)).toBe('unknown');
  expect(credentialStatus({auth_status:'valid',expires_at:200},100)).toBe('unknown');

@@ -76,6 +76,11 @@ fn clean(entries: Vec<Entry>) -> Vec<Entry> {
         .take(32)
         .collect()
 }
+// 向上取整：只要用过就至少亮一格，避免 9% 看起来和 0% 一样。
+fn usage_bar(value: u8) -> String {
+    let filled = usize::from(value.div_ceil(20).min(5));
+    format!("{}{}", "▰".repeat(filled), "▱".repeat(5 - filled))
+}
 fn label(entry: &Entry, en: bool) -> String {
     let name = if entry.id == "empty" {
         if en { "Empty identity" } else { "空身份" }
@@ -84,12 +89,14 @@ fn label(entry: &Entry, en: bool) -> String {
     };
     let usage: Vec<_> = [("5h", entry.five_hour), ("7d", entry.seven_day)]
         .into_iter()
-        .filter_map(|(window, value)| value.map(|value| format!("{window} {value}%")))
+        .filter_map(|(window, value)| {
+            value.map(|value| format!("{window} {} {value}%", usage_bar(value)))
+        })
         .collect();
     if usage.is_empty() {
         name.to_string()
     } else {
-        format!("{name}  ·  {}", usage.join(" / "))
+        format!("{name}  {}", usage.join("  "))
     }
 }
 pub fn menu(
@@ -174,9 +181,9 @@ mod tests {
         let plain = entry("a", "work", false);
         assert_eq!(label(&plain, false), "work");
         let both = Entry { five_hour: Some(0), seven_day: Some(9), ..plain.clone() };
-        assert_eq!(label(&both, false), "work  ·  5h 0% / 7d 9%");
+        assert_eq!(label(&both, false), "work  5h ▱▱▱▱▱ 0%  7d ▰▱▱▱▱ 9%");
         let weekly = Entry { seven_day: Some(100), ..plain };
-        assert_eq!(label(&weekly, false), "work  ·  7d 100%");
+        assert_eq!(label(&weekly, false), "work  7d ▰▰▰▰▰ 100%");
         assert_eq!(label(&entry("empty", "x", false), true), "Empty identity");
     }
     #[test]

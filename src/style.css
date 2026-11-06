@@ -764,6 +764,9 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 .usage-item > span { min-width:14px; text-align:right; color:var(--ccd-faint); }
 .usage-item i { width:36px; height:3px; }
 .usage-item code { min-width:30px; text-align:right; }
+.slot-usage.stale .usage-item i b { background:var(--ccd-faint); }
+.slot-usage.stale .usage-item code { color:var(--ccd-faint); }
+.slot-hint { font-size:11px; color:var(--ccd-warn); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .slot-cta { min-width:0; }
 .slot:not(.expanded) .slot-main:not(:hover):not(:focus-visible) .slot-cta { width:0; overflow:hidden; }
 

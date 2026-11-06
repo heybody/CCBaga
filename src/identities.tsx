@@ -21,7 +21,7 @@ import {ClaudeResiduePanel} from './claude-residue-panel';
 import {AppUpdate,type UpdateInfo} from './app-update';
 import {LanguageSwitch} from './language-switch';
 import {setMotionEnabled,useMotionSetting} from './motion-preference';
-import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,type Identity,type IdentityState,type PlanUsage} from './identity-model';
+import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,usageRefreshHint,usageStale,type Identity,type IdentityState,type PlanUsage} from './identity-model';
 type Target=Identity|'empty'|'recovery'|'save';
 type Drawer='settings'|'residue'|'keep';
 type Slot={key:string;kind:'current'|'saved'|'empty';record?:Identity;target?:Target};
@@ -36,7 +36,8 @@ function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:(key:string,value
  const minutes=Math.max(0,Math.round((now-usage.sampled_at)/60000));
  const ago=minutes<1?t('刚刚'):minutes<60?t('{v0} 分钟前',{v0:minutes}):minutes<2880?t('{v0} 小时前',{v0:Math.round(minutes/60)}):t('{v0} 天前',{v0:Math.round(minutes/1440)});
  const bar=(label:string,value?:number)=>value===undefined?null:<span className={`usage-item${usageLevel(value)}`}><span>{label}</span><i aria-hidden="true"><b style={{width:`${value}%`}}/></i><code>{value}%</code></span>;
- return <span className="slot-usage" title={`${t('来自 Claude 桌面 App 本地用量记录，不是实时数据。')} · ${ago}`}>{bar(t('5h'),usage.five_hour)}{bar(t('周'),usage.seven_day)}</span>;
+ const stale=usageStale(usage,now);
+ return <span className={`slot-usage${stale?' stale':''}`} title={t('{v0}更新',{v0:ago})}>{bar(t('5h'),usage.five_hour)}{bar(t('周'),usage.seven_day)}{stale&&<em>{ago}</em>}</span>;
 }
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
@@ -121,7 +122,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const quiet=useRef(false);quiet.current=locked||loading;
  useEffect(()=>{
   let tick=0;
-  const refresh=()=>{if(!quiet.current)void invoke<IdentityState>('identities_read').then(next=>{if(!quiet.current)setState(next);}).catch(()=>{});};
+  const refresh=()=>{if(!quiet.current)void invoke<IdentityState>('identities_read').then(next=>{if(!quiet.current){setState(next);setNow(Date.now());}}).catch(()=>{});};
   const timer=setInterval(()=>{tick++;if(!document.hidden||tick%6===0)refresh();},10000);
   window.addEventListener('focus',refresh);
   return()=>{clearInterval(timer);window.removeEventListener('focus',refresh);};
@@ -281,6 +282,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const summary=slot.record?state?.summaries?.[slot.record.id]:undefined;
   const meta=slot.kind==='current'?current:summary;
   const status=meta?credentialStatus(meta,now):null;
+  const usageHint=slot.kind==='empty'?null:usageRefreshHint(meta?.usage,now,on,state?.processes==null?null:state.main_running);
   const title=slot.kind==='empty'?t('空身份'):slot.kind==='current'?currentName:slot.record!.name;
   const email=slot.kind==='current'?(current?.email||t(currentAccountMessage(current))):slot.kind==='saved'?summary?.email:t('清空本地登录，保留所选工作区资料');
   const detail=slot.kind==='current'?[organization(current),t(active?'已备份':'未备份')]:slot.kind==='saved'?[organization(summary),date(slot.record!.saved_at),formatBytes(slot.record!.bytes)]:[];
@@ -310,6 +312,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       <span className="slot-text">
        <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
        {(email||detail.some(Boolean))&&<span className="slot-sub">{email&&<span>{email}</span>}{detail.some(Boolean)&&<span className="slot-meta">{email?' · ':''}{detail.filter(Boolean).join(' · ')}</span>}</span>}
+       {usageHint&&<span className="slot-hint">{t(usageHint)}</span>}
       </span>
       {meta?.usage&&slot.kind!=='empty'?<UsageLine usage={meta.usage} now={now} t={t}/>:<span/>}
       <span className="slot-tags">
