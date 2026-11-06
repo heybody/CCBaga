@@ -44,3 +44,5 @@ local.13：local_update.rs 以下载流实际字节数/Content-Length 发送 Cha
 local.16：ClaudeProcess.helper 区分主进程与后台项（Desktop `--type=` 子进程、Claude-Data 内置 CLI、Native Host、cowork-svc、SSH 辅助程序），只带固定显示名，路径仍不送 UI；用户自装 CLI 与读不到参数的 Claude.exe 按主进程算。windows_process.rs 经服务管理器读取并停止 LocalSystem 的 CoworkVMService（进程枚举的 SID 过滤看不到它；服务 DACL 允许已登录用户启停，不提权）。tray.rs 菜单顺序改为打开、身份（带本地 5h/7d）、退出。
 
 local.17：tray.rs 的 usage_bar 把额度画成 5 格文字进度条，向上取整。
+
+local.18：托盘每个身份占两项，名称后跟一项不可点的额度（usage_label）。
