@@ -702,8 +702,10 @@ html.ccd-dark .activity-log { background:#121619; }
 .update-row > button { flex-shrink:0; }
 .update-meta strong { color:var(--ccd-strong); font-size:13px; font-weight:550; }
 .update-meta small { font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
-.update-meta small,.update-meta span,.update-card p { color:var(--ccd-dim); font-size:11px; }
-.update-card p[role="alert"] { color:var(--ccd-danger); overflow-wrap:anywhere; }
+.update-meta small,.update-meta span,.update-card p,.update-error { color:var(--ccd-dim); font-size:11px; }
+.update-meta [role="alert"] { color:var(--ccd-danger); }
+.update-error summary { width:fit-content; cursor:pointer; }
+.update-error p { margin-top:4px; overflow-wrap:anywhere; }
 .update-card progress { width:100%; height:6px; accent-color:var(--ccd-accent); }
 .drawer-body .language-switch { border-color:var(--ccd-line2); }
 .drawer-body .language-switch button[aria-pressed="true"] { background:#e6eaec; color:var(--ccd-bg); }

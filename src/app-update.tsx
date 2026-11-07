@@ -64,27 +64,29 @@ export function AppUpdate({update,blocked}:{update:ReturnType<typeof useAppUpdat
  const download=phase==='download'&&progress?.phase==='downloading'?progress:null;
  const percent=download?.total?Math.min(100,Math.floor(download.received/download.total*100)):null;
  const action=failure?.action??(available?'download':'check');
- const button=failure
-  ?t(action==='install'?'重试安装':action==='download'?'重试下载':'重试检查')
-  :t(action==='download'?'下载并安装':'检查更新');
+ const button=t(failure?'重试':action==='download'?'下载并安装':'检查更新');
  let status='';
- if(phase==='install')status=t('正在启动安装…');
+ if(failure)status=t(action==='check'?'检查更新失败':action==='download'?'下载失败':'安装失败');
+ else if(phase==='install')status=t('正在安装…');
  else if(phase==='check')status=t('正在检查更新…');
  else if(phase==='download'){
-  if(download)status=percent===null?t('已下载 {v0}',{v0:size(download.received)}):t('正在下载 {v0}%',{v0:String(percent)});
-  else status=t(progress?.phase==='verifying'?'正在校验更新包…':'正在准备下载…');
- }else if(!failure&&info)status=available?t('可更新至 {v0}',{v0:info.latest}):t('已是最新版');
+  if(download)status=percent===null?t('已下载 {v0}',{v0:size(download.received)}):t('下载中 {v0}%',{v0:String(percent)});
+  else status=t(progress?.phase==='verifying'?'正在校验…':'正在准备下载…');
+ }else if(info)status=available?t('有新版本 {v0}',{v0:info.latest}):t('已是最新版');
  return <section className="update-card" aria-label={t('软件更新')}>
   <div className="update-row">
    <div className="update-meta">
     <strong>{t('软件更新')}</strong>
     {version&&<small>{version}</small>}
-    {status&&<span role="status">{status}</span>}
+    {status&&<span role={failure?'alert':'status'}>{status}</span>}
    </div>
    {!phase&&<Button size="small" variant={action==='check'?'secondary':'ink'} disabled={blocked} onClick={()=>void run(action)}>{button}</Button>}
   </div>
   {download&&<progress aria-label={t('更新下载进度')} max={download.total||undefined} value={download.total?download.received:undefined}/>}
-  {!phase&&!failure&&available&&<p>{t('安装后自动重开 CCD Switch。')}</p>}
-  {failure&&<p role="alert">{t(failure.action==='check'?'检查更新失败':failure.action==='download'?'下载更新失败':'安装更新失败')} · {t(failure.message)}</p>}
+  {!phase&&!failure&&available&&<p>{t('更新会重启 CCD Switch。')}</p>}
+  {failure&&<details className="update-error">
+   <summary>{t('错误详情')}</summary>
+   <p>{t(failure.message)}</p>
+  </details>}
  </section>;
 }

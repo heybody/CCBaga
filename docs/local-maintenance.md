@@ -2,9 +2,9 @@
 
 当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.15`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
-## 双平台应用内更新（未发布）
+## 双平台应用内更新（local.22，待发版）
 
-Windows x64 与 macOS arm64 共用设置内的「软件更新」。启动及每六小时检查固定 fork 的 Release，用户点击「下载并安装」后才下载。总大小未知时显示已下载大小。下载和安装失败各有原位重试。
+Windows x64 与 macOS arm64 共用设置内的「软件更新」。启动及每六小时检查固定 fork 的 Release，用户点击「下载并安装」后才下载。总大小未知时显示已下载大小。失败时原位显示检查、下载或安装失败和「重试」，技术原因可从「错误详情」展开。
 
 Windows 沿用 NSIS passive 安装与重开。macOS 使用 Release 的 arm64 zip 与 checksums.txt，在当前应用同卷解压，核对版本、Bundle ID 与签名后原子交换应用包，再由 Tauri 重启。对使用维护证书签名的副本，要求候选包匹配原签名要求，必要时用登录钥匙串中同一证书重签。更新需要应用安装目录可写。旧版 macOS 用户首次获取此功能仍需按原安装流程更新一次。
 
