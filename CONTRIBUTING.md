@@ -1,24 +1,44 @@
 <!--
-[INPUT]: 仓库模块边界、测试入口与 GEB 契约。
-[OUTPUT]: PR 作者需要遵守的修改、验证和隐私规则。
-[POS]: README 的贡献入口，不提供发布操作流程。
+[INPUT]: 本分支的模块边界、测试入口、发布工作流与 GEB 契约。
+[OUTPUT]: 贡献者需要遵守的开发、验证、隐私和发布规则。
+[POS]: README 的贡献入口。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 -->
-# Contributing to CCBaga
+# 参与贡献
 
-Follow the [development guide](docs/upstream-README.md#development) or [Linux setup](docs/linux.md). Use the existing lockfiles and UI components.
+欢迎提交问题和改进。本项目只做 Claude 身份切换；浏览器指纹、系统环境和网络相关的需求请提给[上游 CCBaga](https://github.com/liseami/CCBaga)。
 
-## Pull requests
+## 开发环境
 
-- Describe the problem, resulting behavior, checks performed and remaining limits.
-- Read the relevant `CLAUDE.md` map. Update file contracts and module maps with your changes.
-- Keep native operations in Rust/platform bridges and UI strings in both YAML catalogs.
-- Preserve cleanup scopes, process identity checks, permissions and secret handling. Add a focused regression when these boundaries change.
-- Run the relevant [checks](docs/upstream-README.md#checks); verify documentation links for documentation changes.
-- Preserve third-party notices. Original contributions use the [MIT License](LICENSE).
+需要 Bun 1.3.5 和 Rust 1.98.1。
 
-Official versions are published exclusively by **liseami**. Contributor builds are for development and testing.
+```bash
+bun install --frozen-lockfile
+bun test
+bun run build
+bun run test:identities
+cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-protocol
+```
 
-## Bug reports
+`test:identities` 需要本机有 Chrome。打包命令和不含浏览器引擎的配置见 [.github/workflows/cares-build.yml](.github/workflows/cares-build.yml)。
 
-Include the operating system, app version, operation, expected behavior and sanitized error. Never attach private keys, tokens, passwords, subscription URLs or personal file contents. Report sensitive security details privately to the project owner.
+## 提交 PR
+
+- 基于默认分支 `cares/identity-only-0.2.50` 开发，PR 也提到这个分支。
+- 提交信息用 `<type>(<scope>): <描述>`，type 为 feat、fix、docs、style、refactor、test、chore。
+- PR 里写清问题、改动后的行为、跑过的检查和未覆盖的部分。
+- 面向用户的改动写进 [CHANGELOG.md](CHANGELOG.md) 的“未发布”。
+- 改动前读相关目录的 `CLAUDE.md`，改完同步文件头和模块说明。
+- 原生操作放在 Rust 和平台桥里；界面文案同时改 `src/locales` 的中英文 YAML。
+- 不要放宽清理范围、进程识别、权限检查和凭据处理；改到这些边界时加针对性的回归测试。
+- 保留第三方声明。原创贡献按 [MIT 许可](LICENSE) 授权。
+
+## 报告问题
+
+使用 [Issue 模板](https://github.com/heybody/CCBaga/issues/new/choose)，写明系统、版本、操作、预期结果和脱敏后的报错。
+
+不要附上令牌、密码、私钥、身份归档或个人文件内容。安全问题按 [SECURITY.md](SECURITY.md) 私下报告。
+
+## 发布
+
+维护者更新 `packaging/cares/local-build.json` 的版本，把 CHANGELOG 的“未发布”改成新版本，等分支 CI 通过后在该提交上打 `v<版本>` 标签。工作流会构建两个平台，并以 CHANGELOG 中对应小节作为 Release 说明。

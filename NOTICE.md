@@ -6,6 +6,8 @@
 -->
 # Third-party notices
 
+CCD Switch is a modified fork of [CCBaga](https://github.com/liseami/CCBaga) (MIT, baseline `v0.2.50`). The upstream copyright notice in [LICENSE](LICENSE) is retained. Released builds of CCD Switch do not include the Fingerprint Chromium engine described below; its notice stays for the source files kept in this repository.
+
 The top-level MIT license covers CCBaga's original project work. It does not replace third-party copyright notices or license terms.
 
 ## Fingerprint Chromium and Chromium

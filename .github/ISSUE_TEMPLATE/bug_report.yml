@@ -1,0 +1,47 @@
+name: 问题报告
+description: 软件行为不符合预期
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 请勿附上令牌、密码、身份归档或个人文件内容。安全问题请按 SECURITY.md 私下报告。
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 窗口设置里显示的版本号
+      placeholder: 0.2.50+local.20
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 系统
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS arm64
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Desktop / Claude Code 版本
+  - type: textarea
+    id: steps
+    attributes:
+      label: 操作步骤
+      placeholder: 1. 点击身份 A 2. 确认切换
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期结果和实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 脱敏后的报错
+      render: text

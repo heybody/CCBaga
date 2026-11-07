@@ -24,7 +24,9 @@ browser.html - 独立浏览器实测页入口
 vite.config.ts - 双入口静态构建与 YAML 编译，文案单独共享分块
 tsconfig.json - 严格类型检查与 Vite 静态资源导入类型，品牌图由构建器打包
 README.md - CCD Switch 项目入口：定制要点、与上游差异、安装和使用边界；上游原文在 docs/upstream-README*.md
-CONTRIBUTING.md - 英文贡献流程与模块契约
+CHANGELOG.md - 面向用户的版本记录，发布工作流按版本小节生成 Release 说明
+CONTRIBUTING.md - 开发、PR、问题报告与发布流程
+SECURITY.md - 支持范围与私密漏洞报告入口
 LICENSE - 项目原创代码 MIT 授权
 NOTICE.md - 第三方引擎、组件与图标的授权边界
 .gitignore - 排除本机凭据、依赖、引擎与发布产物

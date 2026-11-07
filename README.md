@@ -7,6 +7,10 @@
 
 # CCD Switch
 
+[![最新版本](https://img.shields.io/github/v/release/heybody/CCBaga?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/heybody/CCBaga/releases/latest)
+[![构建](https://github.com/heybody/CCBaga/actions/workflows/cares-build.yml/badge.svg?branch=cares%2Fidentity-only-0.2.50)](https://github.com/heybody/CCBaga/actions/workflows/cares-build.yml)
+[![许可](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Claude Code Desktop Switch**：在同一台电脑上，快速切换 Claude Code 与 Claude Desktop 的本地登录身份。
 
 CCD Switch 基于 [liseami/CCBaga](https://github.com/liseami/CCBaga) 的 `v0.2.50` 定制开发。上游是身份、指纹浏览器、系统环境和网络的综合工具；本项目只留下身份管理，并围绕“每天切账号”重做了界面和流程。
@@ -58,6 +62,9 @@ CCD Switch 基于 [liseami/CCBaga](https://github.com/liseami/CCBaga) 的 `v0.2.
 
 ## 文档
 
+- [更新日志](CHANGELOG.md)
+- [参与贡献](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
 - [本地维护记录](docs/local-maintenance.md)：分支、版本、每次改动和验证边界
 - [身份存储和恢复边界](docs/identity-storage.md)
 - [上游 README](docs/upstream-README.md)（[中文](docs/upstream-README.zh-CN.md)）：上游完整功能，其中浏览器、系统和网络部分不适用于本项目

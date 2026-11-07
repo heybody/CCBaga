@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/heybody/CCBaga/security/advisories/new
+    about: 请私下报告，不要公开发 Issue
+  - name: 浏览器、系统环境和网络功能
+    url: https://github.com/liseami/CCBaga
+    about: 本项目已移除这些功能，请到上游反馈
