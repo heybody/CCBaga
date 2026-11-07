@@ -48,3 +48,5 @@ local.17：tray.rs 的 usage_bar 把额度画成 5 格文字进度条，向上�
 local.19：托盘每个身份共两行，名称与 5h 同行，7d 为下一行不可点项；menu_lines 用制表符让额度同列对齐。
 
 local.20：托盘打开项只写“打开/Open”，避免长名称撑宽左列；窗口标题仍是 Claude Code Desktop Switch。
+
+local.21：tray.rs 的 menu_rows 只给出行首与额度，layout 分平台排版：Windows 仍用一个制表符（菜单右侧快捷键列天然对齐）；macOS NSMenu 把制表符当默认 28pt 制表位，经 native/Tray.m 按菜单字体量出行首宽度，align_tabs 补足制表符让所有额度落在同一格。

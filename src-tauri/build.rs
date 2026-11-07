@@ -10,6 +10,7 @@ fn main() {
             .file("native/Keychain.m")
             .file("native/Identity.m")
             .file("native/System.m")
+            .file("native/Tray.m")
             .flag("-fobjc-arc")
             .compile("selection");
         for framework in [
@@ -29,6 +30,7 @@ fn main() {
         println!("cargo:rerun-if-changed=native/Keychain.m");
         println!("cargo:rerun-if-changed=native/Identity.m");
         println!("cargo:rerun-if-changed=native/System.m");
+        println!("cargo:rerun-if-changed=native/Tray.m");
     }
     tauri_build::build();
 }

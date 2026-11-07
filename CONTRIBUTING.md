@@ -33,6 +33,10 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml --features custom-proto
 - 不要放宽清理范围、进程识别、权限检查和凭据处理；改到这些边界时加针对性的回归测试。
 - 保留第三方声明。原创贡献按 [MIT 许可](LICENSE) 授权。
 
+## Windows 与 macOS
+
+两个平台共用一个分支和一个版本号。改动托盘菜单、窗口标题栏、样式、字体字符、路径、进程或更新入口时，同时考虑两个平台的系统行为，差异用 `cfg(target_os)` 或 `html.mac` 等平台类名分开处理。只在一个平台实测过的改动，在 PR 和 CHANGELOG 里写明另一平台未验证。发布前两个平台的 CI 都要通过。
+
 ## 报告问题
 
 使用 [Issue 模板](https://github.com/heybody/CCBaga/issues/new/choose)，写明系统、版本、操作、预期结果和脱敏后的报错。

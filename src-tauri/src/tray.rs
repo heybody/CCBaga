@@ -1,4 +1,4 @@
-// [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言与 Windows 系统栏明暗状态；不含凭据。
+// [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言、Windows 系统栏明暗状态与 macOS 菜单字体宽度；不含凭据。
 // [OUTPUT]: 菜单栏菜单：打开、身份快捷项（名称与 5h 同行，下一行不可点的 7d）、退出；点身份只显示窗口并发出 tray-switch 事件。
 // [POS]: 托盘菜单边界；不直接切换身份，结束进程的授权仍由窗口内确认面板逐次取得。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -96,12 +96,72 @@ fn usage_lines(entry: &Entry) -> Vec<String> {
         })
         .collect()
 }
-/// 制表符让额度落在菜单右侧同一列，名称长短不同时进度条仍对齐。
-fn menu_lines(entry: &Entry, en: bool) -> Vec<String> {
-    let name = label(entry, en);
+/// 每个身份的菜单行：(行首文字, 额度)。第一行行首是名称，后续行行首为空。
+fn menu_rows(entry: &Entry, en: bool) -> Vec<(String, Option<String>)> {
     let mut usage = usage_lines(entry).into_iter();
-    let first = usage.next().map_or(name.clone(), |line| format!("{name}	{line}"));
-    std::iter::once(first).chain(usage.map(|line| format!("	{line}"))).collect()
+    let first = (label(entry, en), usage.next());
+    std::iter::once(first).chain(usage.map(|line| (String::new(), Some(line)))).collect()
+}
+/// Windows：菜单把制表符后的文字放进右侧快捷键列，所有行天然对齐。
+#[cfg(not(target_os = "macos"))]
+fn layout(rows: Vec<Vec<(String, Option<String>)>>) -> Vec<Vec<String>> {
+    rows.into_iter()
+        .map(|lines| {
+            lines
+                .into_iter()
+                .map(|(head, usage)| usage.map_or(head.clone(), |u| format!("{head}\t{u}")))
+                .collect()
+        })
+        .collect()
+}
+/// macOS：NSMenu 把制表符当普通制表位（默认每 28pt 一格），只用一个制表符时
+/// 名称行和行首为空的行会落在不同格。按菜单字体量出行首宽度，补足制表符，
+/// 让所有额度落在同一格。
+#[cfg(target_os = "macos")]
+fn layout(rows: Vec<Vec<(String, Option<String>)>>) -> Vec<Vec<String>> {
+    extern "C" {
+        fn ccd_menu_text_width(text: *const std::ffi::c_char) -> f64;
+        fn ccd_menu_tab_interval() -> f64;
+    }
+    let width = |text: &str| {
+        let text = std::ffi::CString::new(text).unwrap_or_default();
+        // SAFETY: 传入以 NUL 结尾的 UTF-8；原生层只读并按值返回宽度。
+        unsafe { ccd_menu_text_width(text.as_ptr()) }
+    };
+    // SAFETY: 无参数，只读取系统默认段落样式。
+    let interval = unsafe { ccd_menu_tab_interval() };
+    align_tabs(rows, width, interval)
+}
+/// 目标格取最宽行首之后、至少留 8pt 空隙的第一格；每行补的制表符数为
+/// 从自身行首宽度跳到目标格所需的格数。
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+fn align_tabs(
+    rows: Vec<Vec<(String, Option<String>)>>,
+    width: impl Fn(&str) -> f64,
+    interval: f64,
+) -> Vec<Vec<String>> {
+    let interval = if interval.is_finite() && interval >= 1.0 { interval } else { 28.0 };
+    let widest = rows
+        .iter()
+        .flatten()
+        .filter(|(_, usage)| usage.is_some())
+        .map(|(head, _)| if head.is_empty() { 0.0 } else { width(head) })
+        .fold(0.0, f64::max);
+    let target = ((widest + 8.0) / interval).ceil().max(1.0) as usize;
+    rows.into_iter()
+        .map(|lines| {
+            lines
+                .into_iter()
+                .map(|(head, usage)| match usage {
+                    None => head,
+                    Some(usage) => {
+                        let at = if head.is_empty() { 0 } else { (width(&head) / interval) as usize };
+                        format!("{head}{}{usage}", "\t".repeat(target.saturating_sub(at).max(1)))
+                    }
+                })
+                .collect()
+        })
+        .collect()
 }
 pub fn menu(
     app: &tauri::AppHandle,
@@ -112,6 +172,7 @@ pub fn menu(
     let entries = app.state::<TrayIdentities>().0.lock().unwrap().clone();
     let mut builder = MenuBuilder::new(app);
     let mut items: Vec<Box<dyn IsMenuItem<tauri::Wry>>> = Vec::new();
+    let lines = layout(entries.iter().map(|entry| menu_rows(entry, en)).collect());
     items.push(Box::new(MenuItem::with_id(
         app,
         "open",
@@ -120,8 +181,7 @@ pub fn menu(
         None::<&str>,
     )?));
     items.push(Box::new(PredefinedMenuItem::separator(app)?));
-    for entry in &entries {
-        let lines = menu_lines(entry, en);
+    for (entry, lines) in entries.iter().zip(&lines) {
         items.push(Box::new(CheckMenuItem::with_id(
             app,
             format!("{SWITCH_PREFIX}{}", entry.id),
@@ -190,15 +250,40 @@ mod tests {
     fn entry(id: &str, name: &str, active: bool) -> Entry {
         Entry { id: id.into(), name: name.into(), active, five_hour: None, seven_day: None }
     }
+    fn plain(rows: Vec<(String, Option<String>)>) -> Vec<String> {
+        rows.into_iter().map(|(head, usage)| usage.map_or(head.clone(), |u| format!("{head}|{u}"))).collect()
+    }
     #[test]
-    fn label_shows_available_usage_windows() {
-        let plain = entry("a", "work", false);
-        assert_eq!(menu_lines(&plain, false), ["work"]);
-        let both = Entry { five_hour: Some(0), seven_day: Some(9), ..plain.clone() };
-        assert_eq!(menu_lines(&both, false), ["work	5h ▱▱▱▱▱ 0%", "	7d ▰▱▱▱▱ 9%"]);
-        let weekly = Entry { seven_day: Some(100), ..plain };
-        assert_eq!(menu_lines(&weekly, false), ["work	7d ▰▰▰▰▰ 100%"]);
+    fn rows_show_available_usage_windows() {
+        let base = entry("a", "work", false);
+        assert_eq!(plain(menu_rows(&base, false)), ["work"]);
+        let both = Entry { five_hour: Some(0), seven_day: Some(9), ..base.clone() };
+        assert_eq!(plain(menu_rows(&both, false)), ["work|5h ▱▱▱▱▱ 0%", "|7d ▰▱▱▱▱ 9%"]);
+        let weekly = Entry { seven_day: Some(100), ..base };
+        assert_eq!(plain(menu_rows(&weekly, false)), ["work|7d ▰▰▰▰▰ 100%"]);
         assert_eq!(label(&entry("empty", "x", false), true), "Empty identity");
+    }
+    /// 复现 macOS 错位：旧写法名称行跳到名称后的格，行首为空的行只到第 1 格；现在都落在同一格。
+    #[test]
+    fn mac_tabs_land_every_usage_in_the_same_stop() {
+        let width = |text: &str| match text { "cares_ytbj" => 64.0, "careswpro" => 60.0, "空身份" => 40.0, _ => 0.0 };
+        let rows = vec![
+            vec![("cares_ytbj".into(), Some("5h a".into())), (String::new(), Some("7d b".into()))],
+            vec![("careswpro".into(), Some("5h c".into())), (String::new(), Some("7d d".into()))],
+            vec![("空身份".into(), None)],
+        ];
+        let out = align_tabs(rows, width, 28.0);
+        // 最宽 64 + 8 = 72 → 第 3 格（84pt）。
+        assert_eq!(out[0], ["cares_ytbj\t5h a", "\t\t\t7d b"]);
+        assert_eq!(out[1], ["careswpro\t5h c", "\t\t\t7d d"]);
+        assert_eq!(out[2], ["空身份"]);
+        let stop = |line: &str, head: f64| (head / 28.0) as usize + line.matches('\t').count();
+        assert_eq!(stop(&out[0][0], 64.0), 3);
+        assert_eq!(stop(&out[0][1], 0.0), 3);
+        assert_eq!(stop(&out[1][0], 60.0), 3);
+        // 名称离格线太近时跳到下一格，保留空隙；异常间隔按 28pt。
+        let tight = align_tabs(vec![vec![("n".into(), Some("u".into())), (String::new(), Some("v".into()))]], |_| 80.0, f64::NAN);
+        assert_eq!(tight[0], ["n\t\tu", "\t\t\t\tv"]);
     }
     #[test]
     fn clean_drops_unsafe_ids_and_bounds_names() {
