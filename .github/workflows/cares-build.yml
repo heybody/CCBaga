@@ -1,6 +1,6 @@
 # CCD Switch（原 CCBaga-A）本地维护构建：身份/前端/原生回归 + macOS arm64（debug、ad-hoc 签名）与 Windows x64 NSIS 安装包，均不含浏览器 B 引擎。
 # UI 回归只使用 runner 已安装的 Chrome，不下载或构建浏览器 B。
-# 推 cares/** 分支跑全部检查并上传构建产物；推 v*local.* 标签只构建并发布 Release（zip + checksums.txt），
+# 推 cares/** 分支或向其提 PR 时跑全部检查并上传构建产物；推 v*local.* 标签只构建并发布 Release（zip + checksums.txt），
 # 不重复跑测试——标签必须打在分支 CI 已通过的提交上。版本取 packaging/cares/local-build.json，标签须与之一致。
 # 上游 checks.yml / release.yml 在本分支已删除；本工作流不用任何签名凭据，安装与本地签名在 mbp 上做。
 name: cares-build
@@ -9,6 +9,8 @@ on:
   push:
     branches: ['cares/**']
     tags: ['v*local.*']
+  pull_request:
+    branches: ['cares/**']
   workflow_dispatch:
 
 permissions:
@@ -147,6 +149,7 @@ jobs:
     needs: [build, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
           pattern: CCD-Switch-*
@@ -157,5 +160,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" out/* --draft --title "$GITHUB_REF_NAME" --notes "CCD Switch 身份管理专用；macOS 为 ad-hoc 签名，Windows 安装包未签名。"
+          V="${GITHUB_REF_NAME#v}"
+          awk -v h="## [$V]" 'index($0,h)==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > notes.md
+          grep -q '[^[:space:]]' notes.md || { echo "CHANGELOG.md 缺少 $V 小节" >&2; exit 1; }
+          printf '\n---\n\nmacOS 为 ad-hoc 签名，Windows 安装包未代码签名。校验值见 checksums 附件。\n' >> notes.md
+          gh release create "$GITHUB_REF_NAME" out/* --draft --title "$GITHUB_REF_NAME" --notes-file notes.md
           gh release edit "$GITHUB_REF_NAME" --draft=false --latest
