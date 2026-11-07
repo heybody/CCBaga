@@ -6,7 +6,7 @@
 -->
 # Contributing to CCBaga
 
-Follow the [development guide](README.md#development) or [Linux setup](docs/linux.md). Use the existing lockfiles and UI components.
+Follow the [development guide](docs/upstream-README.md#development) or [Linux setup](docs/linux.md). Use the existing lockfiles and UI components.
 
 ## Pull requests
 
@@ -14,7 +14,7 @@ Follow the [development guide](README.md#development) or [Linux setup](docs/linu
 - Read the relevant `CLAUDE.md` map. Update file contracts and module maps with your changes.
 - Keep native operations in Rust/platform bridges and UI strings in both YAML catalogs.
 - Preserve cleanup scopes, process identity checks, permissions and secret handling. Add a focused regression when these boundaries change.
-- Run the relevant [checks](README.md#checks); verify documentation links for documentation changes.
+- Run the relevant [checks](docs/upstream-README.md#checks); verify documentation links for documentation changes.
 - Preserve third-party notices. Original contributions use the [MIT License](LICENSE).
 
 Official versions are published exclusively by **liseami**. Contributor builds are for development and testing.

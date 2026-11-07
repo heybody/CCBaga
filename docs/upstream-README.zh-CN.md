@@ -4,24 +4,25 @@
 [POS]: README.md 的中文入口；详细技术说明由现有文档维护。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 -->
+> 这是上游 CCBaga 的原始说明，仅作参考。本项目说明见 [README](../README.md)。
 
 # CCBaga
 
-[English](README.md) · **简体中文**
+[English](upstream-README.md) · **简体中文**
 
 CCBaga 是面向 macOS、Linux 和 Windows 的本地工具，用于管理 Claude 身份、伴生浏览器指纹与系统环境，并核验实际浏览器环境。**CCBaga-A** 负责本机操作，**CCBaga-B** 是使用独立资料目录的伴生浏览器。
 
 **用途声明：**本项目仅供旅居海外人员管理本人的 Claude 身份；禁止违反 Anthropic 官方用户协议的用途。本地设置不会更改服务端记录，也不能保证匿名或账号可用。
 
-本页提供简明中文导航；完整功能、开发步骤和平台限制见[英文 README](README.md)。应用界面和侧栏的「使用说明」均支持中文，可在侧栏底部切换语言。
+本页提供简明中文导航；完整功能、开发步骤和平台限制见[英文 README](upstream-README.md)。应用界面和侧栏的「使用说明」均支持中文，可在侧栏底部切换语言。
 
 ## 安装
 
 从 [GitHub Releases](https://github.com/liseami/CCBaga/releases/latest) 下载由项目所有者 **liseami** 发布的官方安装包。
 
-- **macOS 12+，Apple Silicon：**下载包含 A、B 两个应用的 DMG，将两者拖入 Applications，然后启动 CCBaga-A。详见 [macOS 安装说明（英文）](README.md#macos)。
-- **Linux x86_64：**提供基于 Ubuntu 22.04（glibc 2.35）的 DEB、RPM、AppImage，以及面向当前 Arch 的 pacman 包，均包含伴生浏览器。依赖与限制见 [Linux 说明](docs/linux.md)。
-- **Windows 10/11 x86_64：**使用包含 A、B 的 NSIS 安装器。安装器未进行 Authenticode 签名，可能出现 SmartScreen 提示或被组织策略阻止。详见 [Windows 说明](docs/windows.md)。
+- **macOS 12+，Apple Silicon：**下载包含 A、B 两个应用的 DMG，将两者拖入 Applications，然后启动 CCBaga-A。详见 [macOS 安装说明（英文）](upstream-README.md#macos)。
+- **Linux x86_64：**提供基于 Ubuntu 22.04（glibc 2.35）的 DEB、RPM、AppImage，以及面向当前 Arch 的 pacman 包，均包含伴生浏览器。依赖与限制见 [Linux 说明](linux.md)。
+- **Windows 10/11 x86_64：**使用包含 A、B 的 NSIS 安装器。安装器未进行 Authenticode 签名，可能出现 SmartScreen 提示或被组织策略阻止。详见 [Windows 说明](windows.md)。
 
 ## 常用操作
 
@@ -33,8 +34,8 @@ CCBaga 是面向 macOS、Linux 和 Windows 的本地工具，用于管理 Claude
 
 ## 详细文档
 
-- [使用速查（英文）](docs/usage.md)与[身份存储和恢复边界](docs/identity-storage.md)
-- [更新说明（英文）](README.md#updates)
-- [开发与检查（英文）](README.md#development)
-- [贡献指南（英文）](CONTRIBUTING.md)
-- [MIT 许可证](LICENSE)与[第三方声明](NOTICE.md)
+- [使用速查（英文）](usage.md)与[身份存储和恢复边界](identity-storage.md)
+- [更新说明（英文）](upstream-README.md#updates)
+- [开发与检查（英文）](upstream-README.md#development)
+- [贡献指南（英文）](../CONTRIBUTING.md)
+- [MIT 许可证](../LICENSE)与[第三方声明](../NOTICE.md)
