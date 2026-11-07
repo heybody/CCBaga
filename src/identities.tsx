@@ -18,7 +18,7 @@ import {IdentityOperationProgress,useCleanupActivity} from './cleaner-activity';
 import {formatBytes} from './cleaner-model';
 import {ClaudeCliPanel} from './claude-cli-panel';
 import {ClaudeResiduePanel} from './claude-residue-panel';
-import {AppUpdate,type UpdateInfo} from './app-update';
+import {AppUpdate,useAppUpdate} from './app-update';
 import {LanguageSwitch} from './language-switch';
 import {setMotionEnabled,useMotionSetting} from './motion-preference';
 import {credentialStatus,currentAccountMessage,defaultPolicy,policyRows,usageRefreshHint,usageStale,type Identity,type IdentityState,type PlanUsage} from './identity-model';
@@ -66,16 +66,16 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [showProcesses,setShowProcesses]=useState(false);
  const [toast,setToast]=useState<{text:string;back?:string}|null>(null);
  const [residualOpen,setResidualOpen]=useState(false);
- const [updateOpen,setUpdateOpen]=useState(false),[update,setUpdate]=useState<{info:UpdateInfo|null;version:string}>({info:null,version:''});
+ const update=useAppUpdate();
  const activity=useCleanupActivity();
  const list=useRef<HTMLOListElement>(null);
- const locked=busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
+ const locked=update.busy||busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
  const active=state?.records.find(row=>row.id===state.active);
  const current=state?.current;
  const saved=state?.records.filter(row=>!current?.present||row.id!==state.active)??[];
  const currentName=current?.display_name||current?.email?.split('@')[0]||active?.name||t('当前身份');
  // ----- 行内确认期间仍可改选其他身份；其余任务、重命名或删除确认进行时锁定 -----
- const rowBlocked=busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
+ const rowBlocked=update.busy||busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
  const blocked=locked||loading||!state||!!state?.recovery;
  const effectivePolicy={...policy,history:review==='save'?false:review&&state?.options?.carry_sessions?true:policy.history};
  const kept=policyRows.filter(([key])=>effectivePolicy[key]).map(([,label])=>t(label));
@@ -332,7 +332,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <div className="ccd-titlebar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}><strong>Claude Code Desktop Switch</strong></div>
   <header className="ccd-bar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}>
-   <div className="ccd-brand">{residual&&!loading?<button type="button" className="ccd-running residual" title={t('Claude 主进程已退出，仍有后台项在运行。点击查看。')} disabled={locked} onClick={()=>{setStopAccepted(true);setError('');setResidualOpen(true);}}><span className="ccd-running-text">{running}</span></button>:<span className={`ccd-running${state?.main_running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span>}<AppUpdate blocked={locked} open={updateOpen} onOpenChange={setUpdateOpen} onInfo={(info,version)=>setUpdate({info,version})}/></div>
+   <div className="ccd-brand">{residual&&!loading?<button type="button" className="ccd-running residual" title={t('Claude 主进程已退出，仍有后台项在运行。点击查看。')} disabled={locked} onClick={()=>{setStopAccepted(true);setError('');setResidualOpen(true);}}><span className="ccd-running-text">{running}</span></button>:<span className={`ccd-running${state?.main_running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span>}{update.info?.available&&<button type="button" className="update-pill" onClick={()=>setDrawer('settings')}>{update.busy?t('更新中…'):t('发现新版本 {v0}',{v0:update.info.latest})}</button>}</div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>
@@ -371,10 +371,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    <ClaudeResiduePanel activity={activity} blocked={locked||loading||!state||!!state?.recovery} revision={residueRevision} onBusy={setResidueBusy} onChanged={async()=>{if(!await read(false))throw new Error('身份状态刷新失败，请重新检查。');}}/>
   </SideDrawer>
   <SideDrawer open={drawer==='settings'} title={drawerTitle.settings} onClose={()=>setDrawer(null)}>
-   <div className={`drawer-card${update.info?.available?' highlight':''}`}>
-    <div><span className="drawer-label">{t('定制版更新')}</span><strong>{update.info?.available?t('可更新至 {v0}',{v0:update.info.latest}):update.info?t('当前已是最新版本。'):t('正在检查更新…')}</strong><small>{t('当前版本')}：{update.info?.current||update.version||'—'}</small></div>
-    <Button size="small" variant={update.info?.available?'ink':'secondary'} disabled={locked} onClick={()=>setUpdateOpen(true)}>{update.info?.available?t('下载更新'):t('检查更新')}</Button>
-   </div>
+   <AppUpdate update={update} blocked={blocked}/>
    <div className="drawer-row"><span>{t('界面动效')}<small>{motionSetting.reduced?t('系统已开启「减弱动态」，动效暂停。'):t('列表入场、选中光带与切换扫描等效果。')}</small></span><Switch label={t('界面动效')} checked={motionSetting.enabled} onChange={setMotionEnabled}/></div>
    <div className="drawer-row"><span>{t('界面语言')}</span><LanguageSwitch/></div>
    <ClaudeCliPanel blocked={locked||loading||!!state?.recovery} onBusy={setCliBusy}/>

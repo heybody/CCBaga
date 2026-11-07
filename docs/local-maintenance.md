@@ -2,6 +2,13 @@
 
 当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.15`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。
 
+## 双平台应用内更新（未发布）
+
+Windows x64 与 macOS arm64 共用设置内的「软件更新」。启动及每六小时检查固定 fork 的 Release，用户点击「下载并安装」后才下载。总大小未知时显示已下载大小。下载和安装失败各有原位重试。
+
+Windows 沿用 NSIS passive 安装与重开。macOS 使用 Release 的 arm64 zip 与 checksums.txt，在当前应用同卷解压，核对版本、Bundle ID 与签名后原子交换应用包，再由 Tauri 重启。对使用维护证书签名的副本，要求候选包匹配原签名要求，必要时用登录钥匙串中同一证书重签。更新需要应用安装目录可写。旧版 macOS 用户首次获取此功能仍需按原安装流程更新一次。
+
+
 local.15（2026-11-03）：移除 B 浏览器运行模块、启动入口、IPC、联动、状态提示、起始页和指纹迁移；身份切换/恢复/删除直接执行身份事务。打开旧保险库时仅将已有 browser.enabled 置 0，不创建新浏览器状态或绑定，旧绑定与资料保留兼容且不读取；旧迁移包 browser 配置忽略，新包不导出。新增旧库开启联动且含失效指针的隔离往返回归。默认跨平台配置不再打包 browser-ui、浏览器引擎或 B 快捷方式；构建仅含身份应用，UI 回归使用 runner 系统 Chrome。
 
 local.14（2026-11-03）：修复 Windows Native Host 创建 `Logs` 与白名单 `logs` 大小写不同被误报链接的问题，仅允许末尾组件 ASCII 大小写差异，父路径重定向及 junction 仍拒绝。恢复根目录备份文件时，已有父目录只做路径边界检查，不要求 SYSTEM 所有的 HOME 属于当前用户，不修改父目录所有者或 ACL；身份文件仍严格核验所有权。新增真实大小写、快/慢模式往返、junction/父目录重定向拒绝和 SYSTEM 所有 HOME 的隔离回归。

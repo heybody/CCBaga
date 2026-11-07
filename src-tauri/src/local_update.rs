@@ -6,6 +6,10 @@ use std::{path::PathBuf, sync::Mutex, time::Duration};
 use tauri::Manager;
 use tauri::ipc::Channel;
 use crate::identities::private;
+#[cfg(target_os = "macos")]
+#[path = "local_update_macos.rs"]
+mod macos;
+
 const API: &str = "https://api.github.com/repos/heybody/CCBaga/releases?per_page=20";
 const LIMIT: usize = 100 * 1024 * 1024;
 #[derive(Deserialize)]
@@ -13,11 +17,41 @@ struct Asset { name: String, browser_download_url: String }
 #[derive(Deserialize)]
 struct Release { tag_name: String, draft: bool, prerelease: bool, assets: Vec<Asset> }
 #[derive(Clone, Serialize)]
-pub struct Info { pub current: String, pub latest: String, pub available: bool, pub supported: bool }
+pub struct Info { pub current: String, pub latest: String, pub available: bool }
 #[derive(Clone, Serialize)]
 pub struct DownloadProgress { phase: &'static str, received: u64, total: Option<u64> }
 struct Package { info: Info, installer: String, checksum: String, filename: String }
-struct Ready { path: PathBuf, hash: String }
+struct Ready {
+    path: PathBuf,
+    hash: String,
+    #[cfg(target_os = "macos")]
+    version: String,
+}
+#[derive(Clone, Copy)]
+enum Platform { Windows, Macos }
+impl Platform {
+    fn current() -> Result<Self, String> {
+        match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("windows", "x86_64") => Ok(Self::Windows),
+            ("macos", "aarch64") => Ok(Self::Macos),
+            _ => Err("暂无适用于此设备的更新包。".into()),
+        }
+    }
+
+    fn assets(self, version: &str) -> (String, &'static str) {
+        match self {
+            Self::Windows => (format!("CCD-Switch_{version}_windows_x64-setup.exe"), "checksums-windows.txt"),
+            Self::Macos => (format!("CCD-Switch_{version}_macos_arm64.zip"), "checksums.txt"),
+        }
+    }
+
+    fn header(self) -> &'static [u8] {
+        match self {
+            Self::Windows => b"MZ",
+            Self::Macos => b"PK\x03\x04",
+        }
+    }
+}
 #[derive(Default)]
 pub struct Updates(Mutex<Option<Ready>>);
 fn version(value: &str) -> Option<[u64;4]> {
@@ -36,19 +70,19 @@ fn asset_url(url: &str, tag: &str, name: &str) -> bool {
     let raw=format!("https://github.com/heybody/CCBaga/releases/download/{tag}/{name}");
     url==raw || url==raw.replace('+',"%2B")
 }
-fn select(releases: Vec<Release>, current: &str) -> Result<Package,String> {
+fn select(releases: Vec<Release>, current: &str, platform: Platform) -> Result<Package,String> {
     let installed=version(current).ok_or("当前版本格式无效。")?;
     let mut choices=Vec::new();
     for release in releases {
         if release.draft || release.prerelease { continue; }
         let Some(v)=version(&release.tag_name) else {continue};
         let number=release.tag_name.trim_start_matches('v');
-        let filename=format!("CCD-Switch_{number}_windows_x64-setup.exe");
+        let (filename, checksum) = platform.assets(number);
         let Some(exe)=release.assets.iter().find(|a|a.name==filename && asset_url(&a.browser_download_url,&release.tag_name,&filename)) else {continue};
-        let Some(sum)=release.assets.iter().find(|a|a.name=="checksums-windows.txt" && asset_url(&a.browser_download_url,&release.tag_name,"checksums-windows.txt")) else {continue};
-        choices.push((v,Package {info:Info {current:current.into(),latest:number.into(),available:v>installed,supported:cfg!(windows)},installer:exe.browser_download_url.clone(),checksum:sum.browser_download_url.clone(),filename}));
+        let Some(sum)=release.assets.iter().find(|a|a.name==checksum && asset_url(&a.browser_download_url,&release.tag_name,checksum)) else {continue};
+        choices.push((v,Package {info:Info {current:current.into(),latest:number.into(),available:v>installed},installer:exe.browser_download_url.clone(),checksum:sum.browser_download_url.clone(),filename}));
     }
-    choices.into_iter().max_by_key(|(v,_)|*v).map(|(_,p)|p).ok_or("未找到完整的 Windows 更新包。".into())
+    choices.into_iter().max_by_key(|(v,_)|*v).map(|(_,p)|p).ok_or("未找到适用于此设备的完整更新包。".into())
 }
 fn client() -> Result<reqwest::Client,String> {
     reqwest::Client::builder().user_agent("CCD-Switch-update").https_only(true)
@@ -75,9 +109,10 @@ async fn fetch_progress(client:&reqwest::Client,url:&str,limit:usize,mut progres
     Ok(bytes)
 }
 async fn latest(current:&str)->Result<Package,String> {
+    let platform = Platform::current()?;
     let bytes=fetch(&client()?,API,2*1024*1024).await?;
     let releases=serde_json::from_slice(&bytes).map_err(|_|"更新信息格式无效。")?;
-    select(releases,current)
+    select(releases,current,platform)
 }
 fn sha(bytes:&[u8])->String {ring::digest::digest(&ring::digest::SHA256,bytes).as_ref().iter().map(|b|format!("{b:02x}")).collect()}
 fn expected(bytes:&[u8],filename:&str)->Result<String,String> {
@@ -101,7 +136,7 @@ fn verify_ready(ready:&Ready)->Result<(),String> {
 pub async fn local_update_check(app:tauri::AppHandle)->Result<Info,String> {Ok(latest(&app.package_info().version.to_string()).await?.info)}
 #[tauri::command]
 pub async fn local_update_download(app:tauri::AppHandle,on_progress:Channel<DownloadProgress>)->Result<Info,String> {
-    if !cfg!(windows) {return Err("此系统请使用维护安装流程。".into());}
+    let platform = Platform::current()?;
     let cleaner=app.state::<crate::cleaner::Cleaner>();cleaner.enter()?;
     let result=async {
         let _=on_progress.send(DownloadProgress{phase:"checking",received:0,total:None});
@@ -113,7 +148,7 @@ pub async fn local_update_download(app:tauri::AppHandle,on_progress:Channel<Down
             let _=on_progress.send(DownloadProgress{phase:"downloading",received,total});
         }).await?;
         let _=on_progress.send(DownloadProgress{phase:"verifying",received:bytes.len() as u64,total:Some(bytes.len() as u64)});
-        if sha(&bytes)!=hash || !bytes.starts_with(b"MZ") {return Err("安装包校验失败；未安装。".into());}
+        if sha(&bytes)!=hash || !bytes.starts_with(platform.header()) {return Err("安装包校验失败；未安装。".into());}
         let root=app.path().app_cache_dir().map_err(|e|e.to_string())?;
         private::directory(&root)?;
         let folder=root.join(format!("update-{}",crate::identities::new_id()?));
@@ -122,26 +157,46 @@ pub async fn local_update_download(app:tauri::AppHandle,on_progress:Channel<Down
         if let Err(error)=private::write(&path,&bytes) {let _=std::fs::remove_dir_all(&folder);return Err(error);}
         let update_state=app.state::<Updates>();
         let mut ready=update_state.0.lock().map_err(|_|"更新状态不可用。")?;
-        if let Some(old)=ready.replace(Ready{path,hash}) {if let Some(parent)=old.path.parent(){let _=std::fs::remove_dir_all(parent);}}
+        if let Some(old)=ready.replace(Ready{path,hash,#[cfg(target_os = "macos")] version:package.info.latest.clone()}) {if let Some(parent)=old.path.parent(){let _=std::fs::remove_dir_all(parent);}}
         Ok(package.info)
     }.await;
     cleaner.leave();result
 }
 #[tauri::command]
-pub fn local_update_install(app:tauri::AppHandle,confirmed:bool)->Result<(),String> {
+pub async fn local_update_install(app: tauri::AppHandle, confirmed: bool) -> Result<(), String> {
     if !confirmed {return Err("尚未确认安装更新。".into());}
-    if !cfg!(windows) {return Err("此系统请使用维护安装流程。".into());}
-    let cleaner=app.state::<crate::cleaner::Cleaner>();cleaner.enter()?;
-    let result=(|| {
-        let state=app.state::<Updates>();let ready=state.0.lock().map_err(|_|"更新状态不可用。")?;
-        let ready=ready.as_ref().ok_or("请先下载并校验更新包。")?;
+    Platform::current()?;
+    let cleaner = app.state::<crate::cleaner::Cleaner>();
+    cleaner.enter()?;
+    let installer = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = installer.state::<Updates>();
+        let ready = state.0.lock().map_err(|_| "更新状态不可用。")?;
+        let ready = ready.as_ref().ok_or("请先下载并校验更新包。")?;
         verify_ready(ready)?;
-        // NSIS passive 模式自动完成安装；/R 完成后重开应用，/UPDATE 保留更新语义。
-        std::process::Command::new(&ready.path).args(["/P","/R","/UPDATE"]).spawn().map_err(|e|e.to_string())?;
-        Ok(())
-    })();
-    cleaner.leave();
-    if result.is_ok(){app.exit(0);} result
+        #[cfg(target_os = "macos")]
+        {
+            let executable = tauri::process::current_binary(&installer.env()).map_err(|e| e.to_string())?;
+            macos::install(&executable, ready)?;
+            // macOS 替换完成后已不再需要暂存压缩包。
+            if let Some(folder) = ready.path.parent() {
+                let _ = std::fs::remove_dir_all(folder);
+            }
+        }
+        #[cfg(windows)]
+        // NSIS passive 模式自动完成安装，/R 完成后重开，/UPDATE 保留更新语义。
+        std::process::Command::new(&ready.path).args(["/P", "/R", "/UPDATE"]).spawn().map_err(|e| e.to_string())?;
+        Ok::<_, String>(())
+    }).await.unwrap_or_else(|e| Err(e.to_string()));
+    if result.is_ok() {
+        #[cfg(target_os = "macos")]
+        app.request_restart();
+        #[cfg(windows)]
+        app.exit(0);
+    } else {
+        cleaner.leave();
+    }
+    result
 }
 #[cfg(test)]
 mod tests {
@@ -150,7 +205,7 @@ mod tests {
   let root=std::fs::canonicalize(std::env::temp_dir()).unwrap().join(format!("ccd-update-{}",crate::identities::new_id().unwrap()));
   private::directory(&root).unwrap();let path=root.join("setup.exe");
   private::write(&path,b"MZ synthetic installer").unwrap();
-  let ready=Ready{path:path.clone(),hash:sha(b"MZ synthetic installer")};
+  let ready=Ready{path:path.clone(),hash:sha(b"MZ synthetic installer"),#[cfg(target_os = "macos")] version:"0.2.50+local.10".into()};
   verify_ready(&ready).unwrap();
   private::write(&path,b"modified").unwrap();assert!(verify_ready(&ready).is_err());
   std::fs::remove_file(&path).unwrap();assert!(verify_ready(&ready).is_err());
@@ -180,10 +235,20 @@ mod tests {
   for invalid in ["0.2.50","v0.2.50-beta+local.1","0.2.50+local.01","0.2.50+local.10/evil"]{assert!(version(invalid).is_none());}
  }
  #[test] fn release_selection_requires_complete_fork_assets_and_never_reports_downgrade(){
-  fn release(n:u8,complete:bool)->Release {let tag=format!("v0.2.50+local.{n}");let file=format!("CCD-Switch_0.2.50+local.{n}_windows_x64-setup.exe");let names=if complete {vec![file,"checksums-windows.txt".into()]}else{vec![file]};Release{draft:false,prerelease:false,assets:names.into_iter().map(|name|Asset{browser_download_url:format!("https://github.com/heybody/CCBaga/releases/download/{tag}/{name}"),name}).collect(),tag_name:tag}}
-  let p=select(vec![release(9,true),release(10,false)],"0.2.50+local.8").unwrap();assert_eq!(p.info.latest,"0.2.50+local.9");assert!(p.info.available);
-  assert!(!select(vec![release(9,true)],"0.2.50+local.10").unwrap().info.available);
-  let mut bad=release(10,true);bad.assets[0].browser_download_url="https://example.invalid/installer.exe".into();assert!(select(vec![bad],"0.2.50+local.8").is_err());
+  fn release(n:u8, platform: Platform, complete: bool) -> Release {
+   let number=format!("0.2.50+local.{n}");
+   let tag=format!("v{number}");
+   let (file, checksum)=platform.assets(&number);
+   let mut names=vec![file];
+   if complete { names.push(checksum.into()); }
+   Release{draft:false,prerelease:false,assets:names.into_iter().map(|name|Asset{browser_download_url:format!("https://github.com/heybody/CCBaga/releases/download/{tag}/{name}"),name}).collect(),tag_name:tag}
+  }
+  for (platform, other) in [(Platform::Windows, Platform::Macos), (Platform::Macos, Platform::Windows)] {
+   let p=select(vec![release(9,platform,true),release(10,platform,false),release(11,other,true)],"0.2.50+local.8",platform).unwrap();
+   assert_eq!(p.info.latest,"0.2.50+local.9");assert!(p.info.available);
+   assert!(!select(vec![release(9,platform,true)],"0.2.50+local.10",platform).unwrap().info.available);
+   let mut bad=release(10,platform,true);bad.assets[0].browser_download_url="https://example.invalid/installer".into();assert!(select(vec![bad],"0.2.50+local.8",platform).is_err());
+  }
  }
  #[test] fn checksum_is_exact_and_detects_changed_installer(){
   let bytes=b"MZ synthetic installer";let hash=sha(bytes);let line=format!("{hash} *setup.exe\n");assert_eq!(expected(line.as_bytes(),"setup.exe").unwrap(),hash);

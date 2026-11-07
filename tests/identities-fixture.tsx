@@ -86,7 +86,7 @@ function execute(command:string,args:any){
  if(command==='ui_language_read')return 'zh';
  if(command==='ui_language_write')return null;
  if(command==='plugin:app|version')return '0.2.50+local.10';
- if(command==='local_update_check')return {current:'0.2.50+local.10',latest:'0.2.50+local.10',available:false,supported:true};
+ if(command==='local_update_check')return {current:'0.2.50+local.10',latest:'0.2.50+local.10',available:false};
  if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.main_running=false;state.processes=[];return {running:false};}
  if(command==='identities_stop_residual'){if(args.confirmed!==true)throw Error('missing explicit residual stop consent');state.running=false;state.processes=[];state.services=[];return structuredClone(state);}
  if(command==='identities_save'){

@@ -27,7 +27,7 @@ CCD Switch 基于 [liseami/CCBaga](https://github.com/liseami/CCBaga) 的 `v0.2.
 - **运行状态看得清：** 分为运行中、有残留、未运行。主程序退出后还有后台项时，可以确认后一键结束。
 - **切换不丢手头工作：** “带入未完成会话”让会话跟着切到新账号，同名记录追加而不覆盖；“快速切换”挪动缓存和历史，不重新打包。
 - **Windows 专项适配：** 支持 Claude 新版数据目录、Native Host 和 `CoworkVMService` 的识别与停止，并修复了多项切回故障。
-- **Windows 应用内更新：** 只检查本 fork 的 Release，下载后核对 SHA-256 再安装，不结束 Claude，也不会被上游原版覆盖。
+- **应用内更新：** Windows x64 和 macOS arm64 共用设置里的「软件更新」。发现新版本后点击「下载并安装」，可看到下载进度。核对本 fork 的安装包 SHA-256 后自动安装并重开 CCD Switch，Claude 继续运行。
 
 ## 与上游的差异
 

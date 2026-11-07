@@ -3120,6 +3120,8 @@ dependencies = [
  "cc",
  "dunce",
  "flate2",
+ "libc",
+ "plist",
  "reqwest",
  "ring",
  "rusqlite",

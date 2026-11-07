@@ -192,6 +192,12 @@ try{
  // ----- 动效开关：默认开启；关闭后停止动画，系统减弱动态同样静止 -----
  assert.equal(await page.locator('.ccd').getAttribute('data-motion'),'on');
  await page.getByRole('button',{name:'Settings',exact:true}).click();
+ const update=page.getByRole('region',{name:'Software update'});
+ await update.getByText('Up to date',{exact:true}).waitFor();
+ await update.getByRole('button',{name:'Check for updates',exact:true}).click();
+ await update.getByText('Up to date',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('dialog').count(),1);
+ checks++;
  await page.getByRole('switch',{name:'Interface motion',exact:true}).click();
  assert.equal(await page.locator('.ccd').getAttribute('data-motion'),'off');
  assert.equal(await page.locator('.slot.active .slot-index').evaluate(node=>getComputedStyle(node).animationName),'none');

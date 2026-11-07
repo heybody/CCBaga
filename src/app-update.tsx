@@ -1,72 +1,90 @@
 /**
- * [INPUT]: 固定 fork 的原生更新检查/校验下载/确认安装接口、当前版本与身份事务锁。
- * [OUTPUT]: 启动与每六小时静默检测、仅在有新版本时显示的标题栏提示、可由设置抽屉受控打开并立即检查的更新窗、真实下载进度、提前确认后自动校验安装并重开应用、跳转 GitHub 发布页手动更新。
- * [POS]: 定制版更新入口；只在用户确认时关闭 CCD Switch，不结束 Claude 进程。
+ * [INPUT]: 当前版本和固定发布源的原生检查、下载进度与安装命令。
+ * [OUTPUT]: 两端共用的设置内更新状态与操作，启动及每六小时检查。
+ * [POS]: 用户点击后才下载和安装，更新任务在关闭设置后继续。
  */
 import {Channel,invoke} from '@tauri-apps/api/core';
 import {getVersion} from '@tauri-apps/api/app';
-import {useEffect,useState} from 'react';
-import {Button,Checkbox} from 'cromma-ui';
-import {AppDialog} from './dialog';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {Button} from 'cromma-ui';
 import {useI18n} from './i18n';
-export type UpdateInfo={current:string;latest:string;available:boolean;supported:boolean};
-type Info=UpdateInfo;
-type DownloadProgress={phase:"checking"|"downloading"|"verifying";received:number;total:number|null};
+
+type UpdateInfo={current:string;latest:string;available:boolean};
+type DownloadProgress={phase:'checking'|'downloading'|'verifying';received:number;total:number|null};
+type Action='check'|'download'|'install';
 const size=(bytes:number)=>`${(bytes/1024/1024).toFixed(1)} MiB`;
-export function AppUpdate({blocked,open:controlled,onOpenChange,onInfo}:{blocked:boolean;open?:boolean;onOpenChange?:(open:boolean)=>void;onInfo?:(info:Info|null,version:string)=>void}){
- const {t}=useI18n();
- const [local,setLocal]=useState(false),[version,setVersion]=useState(''),[info,setInfo]=useState<Info|null>(null);
- const open=controlled??local;
- const setOpen=(value:boolean)=>{setLocal(value);onOpenChange?.(value);};
- useEffect(()=>{onInfo?.(info,version);},[info,version]);
+
+export function useAppUpdate(){
+ const [version,setVersion]=useState('');
+ const [info,setInfo]=useState<UpdateInfo|null>(null);
+ const [phase,setPhase]=useState<Action|null>(null);
+ const [failure,setFailure]=useState<{action:Action;message:string}|null>(null);
  const [progress,setProgress]=useState<DownloadProgress|null>(null);
- const [phase,setPhase]=useState<'check'|'download'|'install'|null>(null),[ready,setReady]=useState(false),[accepted,setAccepted]=useState(true),[error,setError]=useState('');
- // ----- 按用户偏好每次打开默认勾选，仍须点击下载/安装按钮 -----
- useEffect(()=>{if(open)setAccepted(true);},[open]);
- useEffect(()=>{
-  let live=true;
-  void getVersion().then(v=>{if(live)setVersion(v);}).catch(()=>{});
-  const check=()=>void invoke<Info>('local_update_check').then(v=>{if(live){setInfo(v);setError('');}}).catch(e=>{if(live)setError(String(e));});
-  check();const timer=setInterval(check,6*60*60*1000);
-  return()=>{live=false;clearInterval(timer);};
+ const pending=useRef(false);
+ const run=useCallback(async (action:Action)=>{
+  if(pending.current)return;
+  pending.current=true;
+  setPhase(action);
+  setFailure(null);
+  let step=action;
+  try {
+   if(action==='check'){
+    setInfo(await invoke<UpdateInfo>('local_update_check'));
+   }else{
+    if(action==='download'){
+     setProgress(null);
+     const onProgress=new Channel<DownloadProgress>(setProgress);
+     setInfo(await invoke<UpdateInfo>('local_update_download',{onProgress}));
+     step='install';
+     setPhase(step);
+    }
+    await invoke('local_update_install',{confirmed:true});
+    // 安装接手后保持状态，直到当前程序退出。
+    return;
+   }
+  }catch(error){
+   setFailure({action:step,message:String(error)});
+  }
+  pending.current=false;
+  setPhase(null);
  },[]);
- // ----- 从设置打开时立即检查；已知有新版本时不再重复请求 -----
- useEffect(()=>{if(open&&!info?.available&&!phase)void check();},[open]);
- async function check(){setPhase('check');setError('');try{setInfo(await invoke<Info>('local_update_check'));}catch(e){setError(String(e));}finally{setPhase(null);}}
- async function startInstall(){setPhase('install');await invoke('local_update_install',{confirmed:true});}
- async function download(){
-  if(!accepted||blocked||phase)return;
-  setPhase('download');setError('');setReady(false);setProgress(null);
-  const onProgress=new Channel<DownloadProgress>(event=>setProgress(event));
-  try{setInfo(await invoke<Info>('local_update_download',{onProgress}));setReady(true);await startInstall();}
-  catch(e){setError(String(e));setPhase(null);}
- }
- async function install(){if(!accepted||!ready||blocked||phase)return;setError('');try{await startInstall();}catch(e){setError(String(e));setPhase(null);}}
- const busy=phase!==null;
- return <>
-  {info?.available&&<button type="button" className="update-pill" disabled={blocked} onClick={()=>{setAccepted(true);setOpen(true);}}>{t('发现新版本 {v0}',{v0:info.latest})}</button>}
-  <AppDialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}} title={t('定制版更新')} description={t('点击后下载并校验更新，随后自动安装并重新打开 CCD Switch。')} footer={<>
-   <Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setOpen(false)}>{t('取消')}</Button>
-   <Button variant="secondary" onClick={()=>void invoke('local_release_open').catch(e=>setError(String(e)))}>{t('前往 GitHub 手动更新')}</Button>
-   <Button variant="secondary" disabled={busy||blocked} onClick={()=>void check()}>{t('检查更新')}</Button>
-   {!ready&&info?.available&&info.supported&&<Button variant="ink" disabled={busy||blocked||!accepted} onClick={()=>void download()}>{t('下载并自动安装')}</Button>}
-   {ready&&<Button variant="ink" disabled={busy||blocked||!accepted} onClick={()=>void install()}>{t('重试安装')}</Button>}
-  </>}>
-   <p>{t('当前版本')}：{info?.current||version||'—'}</p>
-   {info&&<p>{info.available?t('可更新至 {v0}',{v0:info.latest}):t('当前已是最新版本。')}</p>}
-   {phase==='check'&&<p role="status">{t('正在检查更新…')}</p>}
-   {phase==='download'&&<div role="status" className="update-download-progress">
-    <p>{t(progress?.phase==='verifying'?'正在校验更新包…':progress?.phase==='downloading'?'正在下载更新':'正在检查更新…')}</p>
-    {progress?.phase==='downloading'&&<>
-     <progress aria-label={t('更新下载进度')} max={progress.total||undefined} value={progress.total?progress.received:undefined} style={{width:'100%'}}/>
-     <p>{progress.total?t('已下载 {v0} / {v1}（{v2}%）',{v0:size(progress.received),v1:size(progress.total),v2:String(Math.min(100,Math.floor(progress.received/progress.total*100)))}):t('已下载 {v0}',{v0:size(progress.received)})}</p>
-    </>}
-   </div>}
-   {phase==='install'&&<p role="status">{t('正在启动自动安装，完成后将重新打开 CCD Switch…')}</p>}
-   {error&&<p role="alert">{t(error)}</p>}
-   {info&&!info.supported&&<p>{t('此系统请使用维护安装流程。')}</p>}
-   {ready&&<p>{t('更新包已通过 SHA-256 校验。')}</p>}
-   {info?.available&&info.supported&&<div className="identity-confirm"><p>{t('安装将关闭 CCD Switch 并打开安装程序；不会结束 Claude Desktop 或 Claude Code，不会切换账号。')}</p><Checkbox disabled={busy} checked={accepted} onCheckedChange={value=>setAccepted(value===true)} label={t('我同意关闭 CCD Switch 并启动安装程序')}/></div>}
-  </AppDialog>
- </>;
+ useEffect(()=>{
+  void getVersion().then(setVersion).catch(()=>{});
+  void run('check');
+  const timer=setInterval(()=>{if(!pending.current)void run('check');},6*60*60*1000);
+  return ()=>clearInterval(timer);
+ },[run]);
+ return {version:info?.current||version,info,phase,failure,progress,run,busy:phase==='download'||phase==='install'};
+}
+
+export function AppUpdate({update,blocked}:{update:ReturnType<typeof useAppUpdate>;blocked:boolean}){
+ const {t}=useI18n();
+ const {version,info,phase,failure,progress,run}=update;
+ const available=!!info?.available;
+ const download=phase==='download'&&progress?.phase==='downloading'?progress:null;
+ const percent=download?.total?Math.min(100,Math.floor(download.received/download.total*100)):null;
+ const action=failure?.action??(available?'download':'check');
+ const button=failure
+  ?t(action==='install'?'重试安装':action==='download'?'重试下载':'重试检查')
+  :t(action==='download'?'下载并安装':'检查更新');
+ let status='';
+ if(phase==='install')status=t('正在启动安装…');
+ else if(phase==='check')status=t('正在检查更新…');
+ else if(phase==='download'){
+  if(download)status=percent===null?t('已下载 {v0}',{v0:size(download.received)}):t('正在下载 {v0}%',{v0:String(percent)});
+  else status=t(progress?.phase==='verifying'?'正在校验更新包…':'正在准备下载…');
+ }else if(!failure&&info)status=available?t('可更新至 {v0}',{v0:info.latest}):t('已是最新版');
+ return <section className="update-card" aria-label={t('软件更新')}>
+  <div className="update-row">
+   <div className="update-meta">
+    <strong>{t('软件更新')}</strong>
+    {version&&<small>{version}</small>}
+    {status&&<span role="status">{status}</span>}
+   </div>
+   {!phase&&<Button size="small" variant={action==='check'?'secondary':'ink'} disabled={blocked} onClick={()=>void run(action)}>{button}</Button>}
+  </div>
+  {download&&<progress aria-label={t('更新下载进度')} max={download.total||undefined} value={download.total?download.received:undefined}/>}
+  {!phase&&!failure&&available&&<p>{t('安装后自动重开 CCD Switch。')}</p>}
+  {failure&&<p role="alert">{t(failure.action==='check'?'检查更新失败':failure.action==='download'?'下载更新失败':'安装更新失败')} · {t(failure.message)}</p>}
+ </section>;
 }
