@@ -46,3 +46,5 @@ local.16：ClaudeProcess.helper 区分主进程与后台项（Desktop `--type=` 
 local.17：tray.rs 的 usage_bar 把额度画成 5 格文字进度条，向上取整。
 
 local.19：托盘每个身份共两行，名称与 5h 同行，7d 为下一行不可点项；menu_lines 用制表符让额度同列对齐。
+
+local.20：托盘打开项只写“打开/Open”，避免长名称撑宽左列；窗口标题仍是 Claude Code Desktop Switch。

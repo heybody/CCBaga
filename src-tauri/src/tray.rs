@@ -115,7 +115,7 @@ pub fn menu(
     items.push(Box::new(MenuItem::with_id(
         app,
         "open",
-        if en { "Open Claude Code Desktop Switch" } else { "打开 Claude Code Desktop Switch" },
+        if en { "Open" } else { "打开" },
         true,
         None::<&str>,
     )?));
