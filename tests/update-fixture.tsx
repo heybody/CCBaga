@@ -6,7 +6,7 @@ import {mockIPC} from '@tauri-apps/api/mocks';
 import {AppUpdate,useAppUpdate} from '../src/app-update';
 import '../src/style.css';
 let pending:{resolve:(value:unknown)=>void;reject:(error:Error)=>void;channel:any;index:number}|null=null;
-const fixture={commands:[] as {command:string,args:any}[],fail:'',info:{current:'0.2.50+local.12',latest:'0.2.50+local.13',available:new URLSearchParams(location.search).get('available')!=='false'},
+const fixture={commands:[] as {command:string,args:any}[],fail:new URLSearchParams(location.search).get('fail')||'',info:{current:'0.2.50+local.12',latest:'0.2.50+local.13',available:new URLSearchParams(location.search).get('available')!=='false'},
  emit:(event:any)=>{if(!pending)throw Error('no download');const id=typeof pending.channel==='string'?Number(pending.channel.replace('__CHANNEL__:','')):pending.channel.id;(window as any).__TAURI_INTERNALS__.runCallback(id,{index:pending.index++,message:event});},
  release:()=>{if(!pending)throw Error('no download');const request=pending;pending=null;request.resolve(structuredClone(fixture.info));},
  reject:()=>{if(!pending)throw Error('no download');const request=pending;pending=null;request.reject(Error('fixture download failed'));},

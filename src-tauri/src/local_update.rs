@@ -126,9 +126,11 @@ fn expected(bytes:&[u8],filename:&str)->Result<String,String> {
 }
 fn verify_ready(ready:&Ready)->Result<(),String> {
     // parents 只接受目录，不能把已经存在的安装包文件本身传进去。
-    private::parents(ready.path.parent().ok_or("更新状态不可用。")?)?;
-    private::safe(&ready.path)?;
-    let bytes=std::fs::read(&ready.path).map_err(|e|e.to_string())?;
+    // 复用身份目录的链接/所有权检查，但报错改成更新语境，避免出现“身份文件”字样。
+    const STAGED: &str = "更新暂存文件不可用；未安装。";
+    private::parents(ready.path.parent().ok_or(STAGED)?).map_err(|_|STAGED)?;
+    private::safe(&ready.path).map_err(|_|STAGED)?;
+    let bytes=std::fs::read(&ready.path).map_err(|_|STAGED)?;
     if bytes.len()>LIMIT || sha(&bytes)!=ready.hash {return Err("安装包校验失败；未安装。".into());}
     Ok(())
 }
@@ -150,11 +152,12 @@ pub async fn local_update_download(app:tauri::AppHandle,on_progress:Channel<Down
         let _=on_progress.send(DownloadProgress{phase:"verifying",received:bytes.len() as u64,total:Some(bytes.len() as u64)});
         if sha(&bytes)!=hash || !bytes.starts_with(platform.header()) {return Err("安装包校验失败；未安装。".into());}
         let root=app.path().app_cache_dir().map_err(|e|e.to_string())?;
-        private::directory(&root)?;
+        const SAVE: &str = "无法保存更新包。";
+        private::directory(&root).map_err(|_|SAVE)?;
         let folder=root.join(format!("update-{}",crate::identities::new_id()?));
-        private::create_directory(&folder)?;
+        private::create_directory(&folder).map_err(|_|SAVE)?;
         let path=folder.join(&package.filename);
-        if let Err(error)=private::write(&path,&bytes) {let _=std::fs::remove_dir_all(&folder);return Err(error);}
+        if private::write(&path,&bytes).is_err() {let _=std::fs::remove_dir_all(&folder);return Err(SAVE.into());}
         let update_state=app.state::<Updates>();
         let mut ready=update_state.0.lock().map_err(|_|"更新状态不可用。")?;
         if let Some(old)=ready.replace(Ready{path,hash,#[cfg(target_os = "macos")] version:package.info.latest.clone()}) {if let Some(parent)=old.path.parent(){let _=std::fs::remove_dir_all(parent);}}

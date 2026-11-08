@@ -33,10 +33,11 @@ fn run(command: &mut Command, error: &str) -> Result<std::process::Output, Strin
 }
 
 fn bundle_version(app: &Path) -> Result<String, String> {
-    private::parents(&app.join("Contents/MacOS"))?;
-    private::safe(&app.join(EXECUTABLE))?;
+    const INVALID: &str = "macOS 应用包信息无效。";
+    private::parents(&app.join("Contents/MacOS")).map_err(|_| INVALID)?;
+    private::safe(&app.join(EXECUTABLE)).map_err(|_| INVALID)?;
     let info = app.join("Contents/Info.plist");
-    private::safe(&info)?;
+    private::safe(&info).map_err(|_| INVALID)?;
     let info: plist::Dictionary = plist::from_file(info).map_err(|_| "macOS 应用包信息无效。")?;
     if info.get("CFBundleIdentifier").and_then(|value| value.as_string()) != Some(IDENTIFIER)
         || info.get("CFBundleExecutable").and_then(|value| value.as_string()) != Some("requirement-french")
@@ -111,8 +112,8 @@ fn swap_bundles(current: &Path, candidate: &Path) -> Result<(), String> {
 pub(super) fn install(executable: &Path, ready: &Ready) -> Result<(), String> {
     let current = executable.ancestors().nth(3)
         .filter(|path| path.extension().is_some_and(|ext| ext == "app") && path.join(EXECUTABLE) == executable)
-        .ok_or("请从可写位置的 CCD Switch 应用包启动更新。")?;
-    private::safe(current)?;
+        .ok_or("当前应用位置不支持在线更新，请从 GitHub 下载安装。")?;
+    private::safe(current).map_err(|_| "当前应用位置不支持在线更新，请从 GitHub 下载安装。")?;
     bundle_version(current)?;
     verify_signature(current)?;
     let parent = current.parent().ok_or("无法定位 macOS 应用安装目录。")?;

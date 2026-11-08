@@ -699,11 +699,12 @@ html.ccd-dark .activity-log { background:#121619; }
 .update-row,.update-meta { display:flex; align-items:center; gap:8px; }
 .update-row { justify-content:space-between; }
 .update-meta { flex-wrap:wrap; min-width:0; }
-.update-row > button { flex-shrink:0; }
+.update-actions { display:flex; gap:6px; flex-shrink:0; }
 .update-meta strong { color:var(--ccd-strong); font-size:13px; font-weight:550; }
 .update-meta small { font:11px ui-monospace,SFMono-Regular,Menlo,monospace; }
-.update-meta small,.update-meta span,.update-card p,.update-error { color:var(--ccd-dim); font-size:11px; }
-.update-meta [role="alert"] { color:var(--ccd-danger); }
+.update-meta small,.update-status,.update-card p,.update-error { color:var(--ccd-dim); font-size:11px; }
+.update-status { font-variant-numeric:tabular-nums; }
+.update-card [role="alert"] { color:var(--ccd-danger); }
 .update-error summary { width:fit-content; cursor:pointer; }
 .update-error p { margin-top:4px; overflow-wrap:anywhere; }
 .update-card progress { width:100%; height:6px; accent-color:var(--ccd-accent); }
@@ -773,8 +774,8 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 .slot-usage.stale .usage-item i b { background:var(--ccd-faint); }
 .slot-usage.stale .usage-item code { color:var(--ccd-faint); }
 .slot-hint { font-size:11px; color:var(--ccd-warn); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.slot-cta { min-width:0; }
-.slot:not(.expanded) .slot-main:not(:hover):not(:focus-visible) .slot-cta { width:0; overflow:hidden; }
+/* 所有行（含当前行的空占位）固定预留操作列，悬停只改透明度，额度列不随悬停或当前行左右移动。 */
+.slot-cta { min-width:56px; }
 
 /* ----- 切换确认底部弹层：标题与按钮固定，内容区滚动 ----- */
 .ccd-sheet-backdrop { position:absolute; inset:0; z-index:30; background:#05080acc; }
