@@ -32,12 +32,17 @@ function organization(meta:{email?:string|null;organization?:string|null}|null|u
 }
 const trayUsage=(usage?:PlanUsage|null)=>({five_hour:usage?.five_hour??null,seven_day:usage?.seven_day??null});
 function usageLevel(value:number){return value>=100?' full':value>=80?' high':'';}
-function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:(key:string,values?:Record<string,string|number>)=>string}){
+type T=(key:string,values?:Record<string,string|number>)=>string;
+function usageAgo(usage:PlanUsage,now:number,t:T){
  const minutes=Math.max(0,Math.round((now-usage.sampled_at)/60000));
- const ago=minutes<1?t('刚刚'):minutes<60?t('{v0} 分钟前',{v0:minutes}):minutes<2880?t('{v0} 小时前',{v0:Math.round(minutes/60)}):t('{v0} 天前',{v0:Math.round(minutes/1440)});
+ return minutes<1?t('刚刚'):minutes<60?t('{v0} 分钟前',{v0:minutes}):minutes<2880?t('{v0} 小时前',{v0:Math.round(minutes/60)}):t('{v0} 天前',{v0:Math.round(minutes/1440)});
+}
+// 采样时间不再单独占一行（过期时并进副标题），各行等高、额度块宽度固定。
+function UsageLine({usage,now,t}:{usage:PlanUsage;now:number;t:T}){
+ const ago=usageAgo(usage,now,t);
  const bar=(label:string,value?:number)=>value===undefined?null:<span className={`usage-item${usageLevel(value)}`}><span>{label}</span><i aria-hidden="true"><b style={{width:`${value}%`}}/></i><code>{value}%</code></span>;
  const stale=usageStale(usage,now);
- return <span className={`slot-usage${stale?' stale':''}`} title={t('{v0}更新',{v0:ago})}>{bar(t('5h'),usage.five_hour)}{bar(t('周'),usage.seven_day)}{stale&&<em>{ago}</em>}</span>;
+ return <span className={`slot-usage${stale?' stale':''}`} title={t('{v0}更新',{v0:ago})}>{bar(t('5h'),usage.five_hour)}{bar(t('周'),usage.seven_day)}</span>;
 }
 function authLabel(status:string|null|undefined) {
  if(status==='local_unexpired')return '本地未过期';
@@ -285,7 +290,8 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const usageHint=slot.kind==='empty'?null:usageRefreshHint(meta?.usage,now,on,state?.processes==null?null:state.main_running);
   const title=slot.kind==='empty'?t('空身份'):slot.kind==='current'?currentName:slot.record!.name;
   const email=slot.kind==='current'?(current?.email||t(currentAccountMessage(current))):slot.kind==='saved'?summary?.email:t('清空本地登录，保留所选工作区资料');
-  const detail=slot.kind==='current'?[organization(current),t(active?'已备份':'未备份')]:slot.kind==='saved'?[organization(summary),date(slot.record!.saved_at),formatBytes(slot.record!.bytes)]:[];
+  const staleUsage=slot.kind!=='empty'&&meta?.usage&&usageStale(meta.usage,now)?t('额度 {v0}',{v0:usageAgo(meta.usage,now,t)}):'';
+  const detail=slot.kind==='current'?[organization(current),staleUsage,t(active?'已备份':'未备份')]:slot.kind==='saved'?[organization(summary),staleUsage,date(slot.record!.saved_at),formatBytes(slot.record!.bytes)]:[];
   const renaming=rename&&slot.record&&rename.id===slot.record.id;
   const expanded=sameTarget(review,slot.target);
   const menuItems:{label:string;run:()=>void;danger?:boolean}[]=slot.kind==='current'?[
@@ -306,9 +312,10 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       <Button size="small" variant="ghost" type="button" onClick={()=>{setRename(null);setError('');}}>{t('取消')}</Button>
      </form>
     :<button type="button" className="slot-main" disabled={!on&&rowBlocked} aria-disabled={on||undefined} aria-current={on?'true':undefined} aria-expanded={!on?expanded:undefined}
-      aria-label={on?`${title} · ${t('当前使用')}`:`${t('切换到')} ${title}`}
+      aria-label={on?`${title} · ${t('当前使用')}`:`${t('切换到')} ${title}`} title={on?undefined:`${t('切换到')} ${title}`}
       onClick={()=>{if(on||!slot.target)return;if(expanded)setReview(null);else choose(slot.target);}}>
-      <span className={`slot-index${on?' live':''}`} aria-hidden="true">{index+1}</span>
+      {/* 非当前行悬停/聚焦/展开时编号格换成箭头，表示点整行切换；不占额外列宽。 */}
+      <span className={`slot-index${on?' live':''}`} aria-hidden="true"><span className="slot-num">{index+1}</span>{!on&&<span className="slot-go">→</span>}</span>
       <span className="slot-text">
        <span className="slot-title"><strong>{title}</strong>{meta?.plan&&slot.kind!=='empty'&&<span className={`slot-plan plan-${meta.plan.split(/[\s/]/)[0].toLowerCase()}`}>{meta.plan}</span>}{on&&<em>{t('当前使用')}</em>}</span>
        {(email||detail.some(Boolean))&&<span className="slot-sub">{email&&<span>{email}</span>}{detail.some(Boolean)&&<span className="slot-meta">{email?' · ':''}{detail.filter(Boolean).join(' · ')}</span>}</span>}
@@ -318,7 +325,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
       <span className="slot-tags">
        {status&&status!=='unknown'&&slot.kind!=='empty'&&<span title={t('仅依据本地元数据，不代表服务端认证结果。')} className={`slot-tag auth-${status}`}>{t(authLabel(status))}</span>}
       </span>
-      <span className="slot-cta" aria-hidden="true">{on?'':expanded?t('收起'):t('切换 →')}</span>
      </button>}
     {menuItems.length>0&&!renaming&&<button type="button" className="slot-more" aria-label={`${t('更多操作')} · ${title}`} aria-haspopup="menu" aria-expanded={menu===slot.key} disabled={blocked&&!(review&&!busy)} onClick={()=>setMenu(value=>value===slot.key?null:slot.key)}>⋯</button>}
     <AnimatePresence>{menu===slot.key&&<motion.div className="slot-menu" role="menu" initial={{opacity:0,scale:.96,y:-4}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:.96,y:-4}} transition={{duration:.14}}>

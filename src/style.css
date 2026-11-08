@@ -585,7 +585,7 @@ html.ccd-dark #app { display:flex; flex-direction:column; background-color:var(-
 .slot { position:relative; border-bottom:1px solid var(--ccd-line); }
 .slot-glow { position:absolute; inset:0; background:linear-gradient(90deg,#5dcaa51f,#5dcaa508 60%,transparent); border-left:2px solid var(--ccd-accent); pointer-events:none; }
 .slot-row { position:relative; display:flex; align-items:stretch; }
-.slot-main { flex:1; min-width:0; display:grid; grid-template-columns:24px minmax(0,1fr) auto auto auto; align-items:center; gap:12px; padding:9px 8px 9px 18px; border:0; background:transparent; color:inherit; text-align:left; font:inherit; }
+.slot-main { flex:1; min-width:0; display:grid; grid-template-columns:24px minmax(0,1fr) auto auto; align-items:center; gap:12px; padding:9px 8px 9px 18px; border:0; background:transparent; color:inherit; text-align:left; font:inherit; }
 .slot-main:hover:not(:disabled):not([aria-disabled=true]),.slot-main:focus-visible { background:var(--ccd-hover); }
 .slot-main:focus-visible { outline:none; box-shadow:inset 2px 0 0 var(--ccd-accent); }
 .slot-main[aria-disabled=true] { cursor:default; }
@@ -611,8 +611,10 @@ html.ccd-dark #app { display:flex; flex-direction:column; background-color:var(-
 .slot-tag.auth-local_unexpired { border-color:#1d9e7555; color:var(--ccd-accent); }
 .slot-tag.auth-refresh_available { border-color:#fac77555; color:var(--ccd-warn); }
 .slot-tag.auth-expired { border-color:#f0959555; color:var(--ccd-danger); }
-.slot-cta { min-width:52px; text-align:right; font-size:12px; color:var(--ccd-accent); opacity:0; transition:opacity .15s; white-space:nowrap; }
-.slot-main:hover .slot-cta,.slot-main:focus-visible .slot-cta,.slot.expanded .slot-cta { opacity:1; }
+.slot-go { display:none; font-family:-apple-system,system-ui,sans-serif; font-size:13px; }
+.slot-main:hover:not(:disabled) .slot-index:not(.live),.slot-main:focus-visible .slot-index:not(.live),.slot.expanded .slot-index:not(.live) { border-color:#1d9e7588; border-style:solid; background:#1d9e751f; color:var(--ccd-accent); }
+.slot-main:hover:not(:disabled) .slot-index:not(.live) .slot-num,.slot-main:focus-visible .slot-index:not(.live) .slot-num,.slot.expanded .slot-index:not(.live) .slot-num { display:none; }
+.slot-main:hover:not(:disabled) .slot-go,.slot-main:focus-visible .slot-go,.slot.expanded .slot-go { display:inline; }
 .slot-more { flex:0 0 36px; border:0; background:transparent; color:var(--ccd-faint); font-size:16px; letter-spacing:1px; }
 .slot-more:hover:not(:disabled),.slot-more[aria-expanded=true] { color:var(--ccd-strong); background:var(--ccd-hover); }
 .slot-more:disabled { opacity:.35; }
@@ -770,12 +772,10 @@ html.ccd-dark:has(.ccd[data-motion=off]) .app-dialog-overlay { animation:none; }
 .usage-item { gap:4px; }
 .usage-item > span { min-width:14px; text-align:right; color:var(--ccd-faint); }
 .usage-item i { width:36px; height:3px; }
-.usage-item code { min-width:30px; text-align:right; }
+.usage-item code { min-width:26px; text-align:right; }
 .slot-usage.stale .usage-item i b { background:var(--ccd-faint); }
 .slot-usage.stale .usage-item code { color:var(--ccd-faint); }
 .slot-hint { font-size:11px; color:var(--ccd-warn); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* 所有行（含当前行的空占位）固定预留操作列，悬停只改透明度，额度列不随悬停或当前行左右移动。 */
-.slot-cta { min-width:56px; }
 
 /* ----- 切换确认底部弹层：标题与按钮固定，内容区滚动 ----- */
 .ccd-sheet-backdrop { position:absolute; inset:0; z-index:30; background:#05080acc; }

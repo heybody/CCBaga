@@ -1416,3 +1416,4 @@
 "前往 GitHub 手动更新": "Update manually on GitHub"
 "额度不是最新的，点一下 Claude 托盘图标刷新": "Usage is not up to date. Click the Claude tray icon to refresh."
 "额度不是最新的，打开 Claude 刷新": "Usage is not up to date. Open Claude to refresh."
+"额度 {v0}": "Usage {v0}"
