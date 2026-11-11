@@ -853,7 +853,9 @@ fn locked_cache_returns_partially_parked_data_without_pending_recovery() {
     use std::os::windows::fs::OpenOptionsExt;
     use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE};
     let f = Fixture::new();
-    let r = Reporter::channel(None);
+    super::private::directory(&f.vault).unwrap();
+    let log_path = f.vault.join("diagnostic-test.jsonl");
+    let r = Reporter::channel(None).with_file(super::private::create(&log_path).unwrap());
     let p = Policy::default();
     let mut s = store::Store::open(&f.vault, &f.home).unwrap();
     s.db.set_flag("fast_archive", true).unwrap();
@@ -873,6 +875,16 @@ fn locked_cache_returns_partially_parked_data_without_pending_recovery() {
     assert_eq!(f.token(), "a-token");
     assert_eq!(fs::read(f.home.join(".claude/.last-cleanup")).unwrap(), b"first-cache");
     assert_eq!(fs::read(f.home.join(".claude/cache/held.log")).unwrap(), b"locked-cache");
+    // 无需正常退出即可读取失败现场；日志只有路径和错误，没有身份正文。
+    let text = fs::read_to_string(&log_path).unwrap();
+    let entries: Vec<serde_json::Value> = text.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let failure = entries.iter().find(|row| row["details"]["event"] == "move_error").unwrap();
+    assert_eq!(failure["details"]["source"], f.home.join(".claude/cache").to_string_lossy().as_ref());
+    assert!(failure["details"]["os_error"].is_number());
+    assert!(failure["details"]["destination"].as_str().unwrap().contains(".plain"));
+    assert!(entries.iter().any(|row| row["details"]["progress"]["message"] == "已回填全部移动缓存，尚未清除登录身份。"));
+    assert!(!text.contains("a-token"));
+    assert!(!text.contains("locked-cache"));
     // 解除占用后可以再次切换，并从归档恢复全部数据。
     drop(held);
     s.switch("empty", "A", &p, &r).unwrap();
@@ -939,7 +951,7 @@ fn fast_archive_moves_history_and_cache_with_rollback_recover_and_old_archive_mi
     let (saved, stage) = s.save_switch("A", &p, &r, true).unwrap();
     s.db.pending(&saved, &b).unwrap();
     let current = store::Store::selected(&stage, &p);
-    s.park(&stage, &current).unwrap();
+    s.park(&stage, &current, &r).unwrap();
     s.clear(&current, &r, "clear").unwrap();
     assert!(!f.home.join(".claude/projects/p/a.jsonl").exists());
     drop(stage);

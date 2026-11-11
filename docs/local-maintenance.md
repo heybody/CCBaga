@@ -1,3 +1,9 @@
+# local.25 诊断日志（2026-11-11）
+
+身份停止/备份/切换/恢复/删除命令将进度写入 `app_data_dir/diagnostics/identity-current.jsonl`，达到 4 MiB 后于下次操作滚动至 `identity-previous.jsonl`。Windows 实际路径为 `%APPDATA%\ai.local.requirement-french\diagnostics`；macOS 为 `~/Library/Application Support/ai.local.requirement-french/diagnostics`。复用保险库私有 ACL/权限与路径检查，失败/完成阶段同步磁盘，日志写入中途失败不打断身份事务。
+
+每条包含 Unix 毫秒时间、操作编号；开始记录版本/平台，切换记录目标编号、恢复标志、保留策略、快速模式/带入会话开关。移动记录源/目标、目录/只读/Windows 属性、错误码/错误类型/系统原文，部分回填及自动恢复结果单独记录。不读正文，不写令牌、配置值或命令行。诊断版只增加观测，不声称已修复本次错误码 5；原现场内存日志已随退出丢失，当前数据库 quick_check=ok、无 recovery。
+
 # 2026-11-01 移植到 v0.2.50，改由 GitHub 构建
 
 当前分支：`cares/identity-only-0.2.50`（GitHub `heybody/CCBaga`），基线 `v0.2.50`；版本 `0.2.50+local.15`，构建配置 `packaging/cares/local-build.json`，工作流 `.github/workflows/cares-build.yml`。

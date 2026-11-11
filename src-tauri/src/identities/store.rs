@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 目录、用户策略、白名单源、已验收归档代次、认证加密与平台凭据桥。
-// [OUTPUT]: 不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、恢复文件不要求已有父目录属于本人、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
+// [OUTPUT]: 缓存移动路径/系统错误/回滚诊断，不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、恢复文件不要求已有父目录属于本人、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
 // [POS]: 身份的文件事务；SQLite 与文件系统由恢复日志协调，不能假装是同一原子事务。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -30,6 +30,28 @@ pub struct Store {
 }
 pub(super) fn problem(_: impl std::fmt::Display) -> String {
     "身份归档读写或验证失败；请保留暂存文件并重试。".into()
+}
+/// 只记录移动所需的元数据，不读取缓存或凭据正文。
+fn diagnostic_move(from: &Path, to: &Path, reporter: &Reporter) -> io::Result<()> {
+    fn metadata(path: &Path) -> serde_json::Value {
+        match fs::symlink_metadata(path) {
+            Ok(meta) => {
+                #[cfg(windows)]
+                let attributes = { use std::os::windows::fs::MetadataExt; Some(meta.file_attributes()) };
+                #[cfg(not(windows))]
+                let attributes: Option<u32> = None;
+                serde_json::json!({"directory": meta.is_dir(), "readonly": meta.permissions().readonly(), "attributes": attributes})
+            }
+            Err(error) => serde_json::json!({"os_error": error.raw_os_error(), "kind": format!("{:?}", error.kind())}),
+        }
+    }
+    reporter.diagnostic(serde_json::json!({"event": "move_start", "source": from, "destination": to, "source_metadata": metadata(from), "destination_metadata": metadata(to)}));
+    let result = fs::rename(from, to);
+    match &result {
+        Ok(()) => reporter.diagnostic(serde_json::json!({"event": "move_ok", "source": from, "destination": to})),
+        Err(error) => reporter.diagnostic(serde_json::json!({"event": "move_error", "source": from, "destination": to, "os_error": error.raw_os_error(), "kind": format!("{:?}", error.kind()), "system_message": error.to_string(), "source_metadata": metadata(from), "destination_metadata": metadata(to)})),
+    }
+    result
 }
 impl Store {
     pub fn open(vault: &Path, home: &Path) -> Result<Self, String> {
@@ -305,7 +327,7 @@ impl Store {
                     // 挪动存放的数据已在工作区（回滚或恢复重入），或保存时就已不存在（缓存可再生），跳过。
                 } else if source.path.exists() {
                     return Err("身份恢复位置已有数据；请使用恢复操作。".into());
-                } else if super::archive::movable(source) && fs::rename(&data, &source.path).is_ok() {
+                } else if super::archive::movable(source) && diagnostic_move(&data, &source.path, reporter).is_ok() {
                     // 缓存与会话同盘直接挪回（旧归档的临时解包目录也一样，挪走不影响归档）；
                     // 账号/配置类仍复制，摘要还要从解包目录读取。
                     private::sync_parent(&source.path);
@@ -467,7 +489,7 @@ impl Store {
     }
     /// 快速切换：把挪动存放的数据整目录挪进该代次的 .plain 目录（替代删除）。
     /// 可重入：工作区已没有或 .plain 里已有时跳过，回滚与崩溃恢复都靠它把数据挪回原主人。
-    pub(super) fn park(&self, stage: &Stage, sources: &[(usize, Source)]) -> Result<(), String> {
+    pub(super) fn park(&self, stage: &Stage, sources: &[(usize, Source)], reporter: &Reporter) -> Result<(), String> {
         for (n, source) in sources {
             if !stage.is_plain(*n) {
                 continue;
@@ -482,7 +504,7 @@ impl Store {
             }
             private::safe(&source.path)?;
             private::directory(data.parent().unwrap())?;
-            fs::rename(&source.path, &data).map_err(|error| format!(
+            diagnostic_move(&source.path, &data, reporter).map_err(|error| format!(
                 "身份缓存无法移动（Windows/系统错误码 {:?}）；请退出 Claude 及其浏览器连接器后重试。",
                 error.raw_os_error()
             ))?;
@@ -519,7 +541,7 @@ impl Store {
             private::parents(source.path.parent().unwrap())?;
             if !source.path.exists() && data.exists() {
                 // 工作区还没有这类会话：整体挪入。
-                fs::rename(&data, &source.path).map_err(problem)?;
+                diagnostic_move(&data, &source.path, reporter).map_err(problem)?;
                 private::sync_parent(&source.path);
                 continue;
             }
@@ -726,7 +748,7 @@ impl Store {
                 Some(outgoing.manifest.sources.len()),
             );
             mutated = true;
-            if let Err(error) = self.park(&outgoing, &current) {
+            if let Err(error) = self.park(&outgoing, &current, reporter) {
                 // 尚未清除身份：只回填已经挪走的部分，不能再次 park 同一个被占用目录。
                 let rollback: Result<(), String> = (|| {
                     for (n, source) in current.iter().rev() {
@@ -739,13 +761,17 @@ impl Store {
                         }
                         private::safe(&data)?;
                         private::parents(source.path.parent().unwrap())?;
-                        fs::rename(&data, &source.path).map_err(problem)?;
+                        diagnostic_move(&data, &source.path, reporter).map_err(problem)?;
                         private::sync_parent(&source.path);
                     }
                     Ok(())
                 })();
-                if rollback.is_ok() {
-                    mutated = false;
+                match &rollback {
+                    Ok(()) => {
+                        mutated = false;
+                        reporter.log("rollback", "ok", "已回填全部移动缓存，尚未清除登录身份。", 1, Some(1));
+                    }
+                    Err(reason) => reporter.log("rollback", "error", reason, 0, None),
                 }
                 return Err(error);
             }
@@ -817,9 +843,9 @@ impl Store {
             if self.stopped().is_ok() {
                 let rollback = (|| {
                     if let Some(stage) = incoming.as_ref() {
-                        self.park(stage, &next)?;
+                        self.park(stage, &next, reporter)?;
                     }
-                    self.park(&outgoing, &current)?;
+                    self.park(&outgoing, &current, reporter)?;
                     self.clear(&current, reporter, "rollback")?;
                     self.clear(&next, reporter, "rollback")?;
                     let live = self.snapshot_keys()?;
@@ -833,6 +859,9 @@ impl Store {
                     )?;
                     self.db.complete(&record.id)
                 })();
+                if let Err(reason) = &rollback {
+                    reporter.log("rollback", "error", reason, 0, None);
+                }
                 if rollback.is_ok() {
                     self.db.compact()?;
                     let _ = self.collect_generations();
@@ -911,9 +940,9 @@ impl Store {
         reporter.log("switch", "running", "正在恢复未完成的身份切换。", 0, None);
         // 先把挪动存放的数据挪回各自代次（目标先、原身份后），检查点只保存剩下的现状。
         if let Some(stage) = incoming.as_ref() {
-            self.park(stage, &Self::selected(stage, &outgoing.manifest.policy))?;
+            self.park(stage, &Self::selected(stage, &outgoing.manifest.policy), reporter)?;
         }
-        self.park(&outgoing, &Self::selected(&outgoing, &outgoing.manifest.policy))?;
+        self.park(&outgoing, &Self::selected(&outgoing, &outgoing.manifest.policy), reporter)?;
         // 恢复前再保存现状，避免崩溃后用户新产生的数据被恢复操作覆盖。
         let (checkpoint, current_stage) =
             self.save_checkpoint(name, &outgoing.manifest.policy, reporter)?;

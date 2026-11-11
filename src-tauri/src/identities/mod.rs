@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 身份目录与脱敏认证元数据、加密压缩保险库、精确进程查询、Cleaner 事务锁和 Tauri 进度通道。
-// [OUTPUT]: 只读当前/已保存摘要及有界进程预览、用户保留选项与真实进度的停止/备份/切换/恢复/删除命令。
+// [OUTPUT]: 私有滚动诊断日志、只读当前/已保存摘要及有界进程预览、用户保留选项与真实进度的停止/备份/切换/恢复/删除命令。
 // [POS]: GUI 身份管理的原生入口；刷新只读工作区、不回收暂存文件；不提供凭据读取、任意文件或网络接口。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 mod archive;
@@ -119,6 +119,32 @@ fn vault(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|_| "身份保险库无法定位。")?
         .join("identity-vault"))
 }
+/// 身份操作共用事务锁；两份滚动日志仅含阶段、路径与系统元数据。
+fn diagnostic_reporter(app: &tauri::AppHandle, channel: Option<Channel<Progress>>) -> Result<Reporter, String> {
+    let root = app.path().app_data_dir().map_err(|_| "诊断日志目录无法定位。")?.join("diagnostics");
+    private::directory(&root)?;
+    let path = root.join("identity-current.jsonl");
+    if path.exists() {
+        private::safe(&path)?;
+        if std::fs::metadata(&path).map_err(store::problem)?.len() >= 4 * 1024 * 1024 {
+            let previous = root.join("identity-previous.jsonl");
+            if previous.exists() {
+                private::safe(&previous)?;
+                std::fs::remove_file(&previous).map_err(store::problem)?;
+            }
+            std::fs::rename(&path, &previous).map_err(store::problem)?;
+        }
+    }
+    let file = if path.exists() {
+        private::protect(&path)?;
+        std::fs::OpenOptions::new().append(true).open(&path).map_err(store::problem)?
+    } else {
+        private::create(&path)?
+    };
+    let reporter = Reporter::channel(channel).with_file(file);
+    reporter.diagnostic(serde_json::json!({"event": "operation_start", "version": app.package_info().version.to_string(), "os": std::env::consts::OS}));
+    Ok(reporter)
+}
 fn state(app: &tauri::AppHandle) -> Result<State, String> {
     let vault_path = vault(app)?;
     let root_path = crate::cleaner::identity::root()?;
@@ -199,8 +225,9 @@ pub async fn identities_stop(
     let on_progress = on_progress.map(|id| id.channel_on(webview));
     let cleaner = app.state::<crate::cleaner::Cleaner>();
     cleaner.enter()?;
+    let worker = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let reporter = Reporter::channel(on_progress);
+        let reporter = diagnostic_reporter(&worker, on_progress)?;
         reporter.log("stop", "running", "正在结束已识别的 Claude 进程。", 0, None);
         let result = crate::cleaner::stop_processes();
         match &result {
@@ -255,7 +282,7 @@ pub async fn identities_save(
     cleaner.enter()?;
     let worker = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let reporter = Reporter::channel(Some(on_progress));
+        let reporter = diagnostic_reporter(&worker, Some(on_progress))?;
         let result = (|| {
             let mut store =
                 store::Store::open(&vault(&worker)?, &crate::cleaner::identity::root()?)?;
@@ -290,10 +317,11 @@ pub async fn identities_switch(
     cleaner.enter()?;
     let worker = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let reporter = Reporter::channel(Some(on_progress));
+        let reporter = diagnostic_reporter(&worker, Some(on_progress))?;
         let result = (|| {
             let mut store =
                 store::Store::open(&vault(&worker)?, &crate::cleaner::identity::root()?)?;
+            reporter.diagnostic(serde_json::json!({"event": "switch_context", "target": target_id, "recover": recover, "policy": policy, "fast_archive": store.db.flag("fast_archive")?, "carry_sessions": store.db.flag("carry_sessions")?}));
             if recover {
                 store.recover(&current_name, &reporter)?;
             } else {
@@ -354,7 +382,7 @@ pub async fn identities_delete(
     cleaner.enter()?;
     let worker = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let reporter = Reporter::channel(Some(on_progress));
+        let reporter = diagnostic_reporter(&worker, Some(on_progress))?;
         let action = || {
             let mut store =
                 store::Store::open(&vault(&worker)?, &crate::cleaner::identity::root()?)?;
