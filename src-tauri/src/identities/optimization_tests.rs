@@ -850,8 +850,17 @@ fn carry_sessions_keeps_live_history_and_merges_archived_without_overwrite() {
 #[cfg(windows)]
 #[test]
 fn locked_cache_returns_partially_parked_data_without_pending_recovery() {
+    locked_cache_rollback(false);
+}
+#[cfg(windows)]
+#[test]
+fn append_open_log_with_delete_sharing_still_blocks_directory_move_and_rolls_back() {
+    locked_cache_rollback(true);
+}
+#[cfg(windows)]
+fn locked_cache_rollback(append_log: bool) {
     use std::os::windows::fs::OpenOptionsExt;
-    use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE};
+    use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE};
     let f = Fixture::new();
     super::private::directory(&f.vault).unwrap();
     let log_path = f.vault.join("diagnostic-test.jsonl");
@@ -862,11 +871,15 @@ fn locked_cache_returns_partially_parked_data_without_pending_recovery() {
     f.login("A", "one", "a-token");
     f.write(".claude/.last-cleanup", b"first-cache");
     f.write(".claude/cache/held.log", b"locked-cache");
-    // 允许快照读取，但目录句柄不共享删除，复现 Windows 的移动失败。
-    let held = fs::OpenOptions::new().read(true)
+    // 两种真实占用：目录不共享删除；Native Host 追加日志（即使共享删除也挡住父目录移动）。
+    let held = if append_log {
+        fs::OpenOptions::new().append(true)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+            .open(f.home.join(".claude/cache/held.log")).unwrap()
+    } else { fs::OpenOptions::new().read(true)
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
-        .open(f.home.join(".claude/cache")).unwrap();
+        .open(f.home.join(".claude/cache")).unwrap() };
     let error = s.switch("empty", "A", &p, &r).unwrap_err();
     assert!(error.contains("系统错误码"), "{error}");
     assert!(s.db.get("recovery").unwrap().is_none());

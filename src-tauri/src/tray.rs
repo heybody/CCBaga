@@ -1,4 +1,4 @@
-// [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言、Windows 系统栏明暗状态与 macOS 菜单字体宽度；不含凭据。
+// [INPUT]: 前端推送的身份名称、本地 5h/7d 额度百分比、界面语言、Windows 系统栏明暗状态与双端菜单字体宽度；不含凭据。
 // [OUTPUT]: 菜单栏菜单：打开、身份快捷项（名称与 5h 同行，下一行不可点的 7d）、退出；点身份只显示窗口并发出 tray-switch 事件。
 // [POS]: 托盘菜单边界；不直接切换身份，结束进程的授权仍由窗口内确认面板逐次取得。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -18,6 +18,9 @@ pub struct Entry {
 #[derive(Default)]
 pub struct TrayIdentities(pub Mutex<Vec<Entry>>);
 pub const SWITCH_PREFIX: &str = "switch:";
+#[cfg(target_os = "windows")]
+#[path = "tray_windows.rs"]
+mod windows_layout;
 
 #[cfg(target_os = "windows")]
 fn windows_light_theme() -> bool {
@@ -102,8 +105,12 @@ fn menu_rows(entry: &Entry, en: bool) -> Vec<(String, Option<String>)> {
     let first = (label(entry, en), usage.next());
     std::iter::once(first).chain(usage.map(|line| (String::new(), Some(line)))).collect()
 }
-/// Windows：菜单把制表符后的文字放进右侧快捷键列，所有行天然对齐。
-#[cfg(not(target_os = "macos"))]
+/// Windows 的快捷键列整体右对齐；先按系统字体补齐额度各列，避免 0%/100% 拉动行首。
+#[cfg(target_os = "windows")]
+fn layout(rows: Vec<Vec<(String, Option<String>)>>) -> Vec<Vec<String>> {
+    windows_layout::layout(rows)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn layout(rows: Vec<Vec<(String, Option<String>)>>) -> Vec<Vec<String>> {
     rows.into_iter()
         .map(|lines| {

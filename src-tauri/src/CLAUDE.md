@@ -7,12 +7,13 @@ cleaner_identity.rs: 根目录 .claude.json.backup[.*] 的恢复许可独立于�
 updater_tests.rs: 官方更新器本机 HTTP 公开向量验证篡改与版本冒用；发布显式传入实际清单/归档，下载核验而不安装。
 main.rs: 官方更新/重启/原生文件选择插件与 Tauri 生命周期、双语托盘和文件残留扫描/选择清理、身份/密码迁移一次性文件票据/CLI/浏览器/固定网络入口命令注册；启动时带起 CCBaga-B，退出删除 start.url；发布缺少 custom-protocol 时编译失败，防止安装包依赖开发服务；Windows 正式宿主使用 GUI 子系统，CI 仅记录固定启动阶段定位实际运行阻塞，不记录参数或用户资料。
 ui_language.rs: 受 zh/en 白名单限制的界面偏好，原子持久化后发布内存状态；保存后刷新托盘菜单，独立于电脑与浏览器语言。
+tray_windows.rs: 按系统菜单字体的 DrawText 绘制宽度补齐 Windows 额度标签/进度条/百分比列，整段右对齐时保持列位置；处理 Unicode 字形回退和像素舍入，不修改 macOS 排版。
 tray.rs: 托盘菜单（身份快捷项/打开/退出）；前端经 tray_identities_set 推送仅含 id/名称/是否当前的列表（过滤非法 id、截断名称、最多 32 项）；点身份只显示窗口并发 tray-switch 事件，由窗口内行内确认取得结束进程授权，原生层不直接切换。
 windows.rs: Win32 剪贴板、TokenUser/TokenOwner 文件检查、绝对长路径、真实 UI 语言/区域/时区和本机代理；不以额外管理员组扩大信任，不将新偏好冒充当前显示语言；拒绝凭据管理器自动读取和 SSH 操作。
 windows_tests.rs: 隔离文件所有者、长路径/命名空间及代理/语言格式回归；CI 专用时区写入后还原，不操作本机真实身份。
 windows_timezones.rs: CLDR 48 固定全量 Windows/IANA 映射与目录别名，无运行时下载或猜测；原始许可证作为 Windows 资源交付。
 windows_browser_arguments.rs: Windows 8.1+ NtQueryInformationProcess 经仅查询句柄读取浏览器完整 argv，校验本地 UNICODE_STRING 缓冲范围/长度/对齐并拒绝非法 UTF16/NUL，避免沙箱 VM_READ 需求；未知不冒充空参数，测试只读本测试进程。
-windows_process.rs: Win32 当前用户 Toolhelp/MSIX Claude 与独立 Native Host 精确识别、创建时间与句柄终止；浏览器独立扫描本人固定引擎，以唯一绝对资料参数和目录 volume/fileIndex 核验，支持 verbatim/8.3 别名，读取未知阻止修改、仅持原句柄确认退出才忽略竞态；正常 WM_CLOSE 只发给已证明目标。浏览器仅查询句柄读取完整 argv，CLI PEB 的 VM_READ 路径保留；原始 argv 不序列化，CLI 超时继续 Job Object 限树；Windows CI 复核时区写入并还原。
+windows_process.rs: Win32 当前用户 Toolhelp/MSIX Claude 与独立 Native Host 精确识别（官方 Native Host 根目录解析 junction，覆盖商店资料迁到其他磁盘后返回的 WpSystem 实际路径）、创建时间与句柄终止；浏览器独立扫描本人固定引擎，以唯一绝对资料参数和目录 volume/fileIndex 核验，支持 verbatim/8.3 别名，读取未知阻止修改、仅持原句柄确认退出才忽略竞态；正常 WM_CLOSE 只发给已证明目标。浏览器仅查询句柄读取完整 argv，CLI PEB 的 VM_READ 路径保留；原始 argv 不序列化，CLI 超时继续 Job Object 限树；Windows CI 复核时区写入并还原。
 system.rs: macOS 地区参数在修改时区前只读预检，读回按系统规范别名核验；电脑环境查询、独立修改命令与目录限定的地区时区/语言/区域应用；后台执行原生操作，错误后重新读取系统状态。
 native.rs: 剪贴板、辅助功能设置、进程编号与凭据解锁桥；旧扫描只读凭据属性，已移除旧批量单项凭据删除包装；身份快照/恢复仅原生可用，默认服务正文不送 UI。
 cleaner.rs: 共享精确进程停止、文件扫描/快照保护/只读进程状态与独立残留扫描计划；Windows 外置 AppData 只允许同一目标白名单且复核规范路径/用户所有权；原生 CLI 识别当前用户官方 versions 下的精确数字版本程序；结束全部已识别的 Claude 进程时逐轮核验与收敛；CLI/身份/残留修改共用事务锁，各调用独立进度通道。
@@ -50,3 +51,5 @@ local.19：托盘每个身份共两行，名称与 5h 同行，7d 为下一行�
 local.20：托盘打开项只写“打开/Open”，避免长名称撑宽左列；窗口标题仍是 Claude Code Desktop Switch。
 
 local.21：tray.rs 的 menu_rows 只给出行首与额度，layout 分平台排版：Windows 仍用一个制表符（菜单右侧快捷键列天然对齐）；macOS NSMenu 把制表符当默认 28pt 制表位，经 native/Tray.m 按菜单字体量出行首宽度，align_tabs 补足制表符让所有额度落在同一格。
+
+local.26：Windows 额度不再假定快捷键列内部天然等宽；tray_windows.rs 按实际整段绘制宽度补齐空白，覆盖 0/9/10/20/99/100% 与 5h/7d 的原生字体回归。Native Host 使用官方逻辑根和其 canonical 实际根校验路径，保持用户 SID、精确版本/文件名、创建时间及原句柄核验；仅当前用户的官方连接器可被结束。

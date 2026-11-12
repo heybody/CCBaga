@@ -37,3 +37,5 @@ local.12：store.rs 在清除身份之前的 park 部分失败时逆序回填已
 local.14：Windows Logs/logs 仅叶节点大小写兼容，junction 和父路径重定向仍拒绝；恢复根目录备份不要求既有 HOME 属于本人，不改其 ACL/所有者。optimization_tests.rs 覆盖快/慢往返及 SYSTEM 所有 HOME。
 
 local.16：State 增加 main_running 与 services；identities_stop_residual 要求 confirmed=true，持事务锁后重新枚举，主进程又打开则拒绝，否则结束已识别进程并停止后台服务。身份切换的 identities_stop 不变，不碰 CoworkVMService。
+
+local.26：缓存占用回归新增真实追加日志句柄：即使 FILE_SHARE_DELETE 允许打开删除权限，Windows 仍拒绝移动父目录；验证缓存回填、日志落盘、关闭句柄后的空身份往返。

@@ -1,5 +1,5 @@
 // [INPUT]: Win32 Toolhelp/进程句柄、当前用户 SID、精确 CLI 入口与独立浏览器资料路径。
-// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI、独立 Native Host）精确进程与句柄复核后的结束，主进程/后台项分类，CoworkVMService 状态读取与停止；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
+// [OUTPUT]: 官方 CLI/Desktop（含新 Claude-Data 内置 CLI、商店跨盘重定向的 Native Host）精确进程与句柄复核后的结束，主进程/后台项分类，CoworkVMService 状态读取与停止；浏览器限本人固定引擎、唯一绝对资料参数和同目录句柄标识，读取未知阻止修改。
 // [POS]: Windows 进程边界；参数仅用于原生判定，不返回 UI；不对其他用户或名称相似的程序执行终止。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{current_sid, input, process_sid, response};
@@ -228,6 +228,20 @@ fn official_cli(args: &[String]) -> bool {
             && normalized(arg).ends_with("\\node_modules\\@anthropic-ai\\claude-code\\cli.js")
     })
 }
+/// 商店资料迁移到其他磁盘后，进程映像返回 WpSystem 实际路径。
+/// 只解析已知官方根目录，仍严格限定三段数字版本/固定程序名，不泛认任意 WpSystem 路径。
+fn official_native_host(image: &str, root: &Path) -> bool {
+    let path = normalized(image);
+    let matches = |root: &Path| {
+        let prefix = format!("{}\\", normalized(&root.to_string_lossy()));
+        path.strip_prefix(&prefix).is_some_and(|relative| {
+            let parts: Vec<_> = relative.split('\\').collect();
+            parts.len() == 2 && version_name(parts[0]) && !parts[0].ends_with(".exe")
+                && parts[1] == "chrome-native-host.exe"
+        })
+    };
+    matches(root) || dunce::canonicalize(root).is_ok_and(|resolved| matches(&resolved))
+}
 fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
     let path = normalized(image);
     let name = path.rsplit('\\').next()?;
@@ -247,15 +261,10 @@ fn claude_kind(image: &str, args: &[String]) -> Option<&'static str> {
     }
     let local = normalized(&std::env::var("LOCALAPPDATA").ok()?);
     // 浏览器连接器在 Desktop 退出后仍可持有日志目录；无包身份时也必须识别。
-    if let Some(relative) = path.strip_prefix(&format!(
-        "{local}\\packages\\claude_pzs8sxrjxfjjc\\localcache\\roaming\\claude-nativehost\\"
-    )) {
-        let parts: Vec<_> = relative.split('\\').collect();
-        if parts.len() == 2 && version_name(parts[0]) && !parts[0].ends_with(".exe")
-            && parts[1] == "chrome-native-host.exe"
-        {
-            return Some("Claude Desktop");
-        }
+    if name == "chrome-native-host.exe" && official_native_host(&path, Path::new(&format!(
+        "{local}\\packages\\claude_pzs8sxrjxfjjc\\localcache\\roaming\\claude-nativehost"
+    ))) {
+        return Some("Claude Desktop");
     }
     // 新商店版把内置 CLI 放在包目录外，进程没有 MSIX 包身份；仅接受实测官方布局。
     if let Some(relative) = path.strip_prefix(&format!(
@@ -721,6 +730,36 @@ impl ChildJob {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_native_host_in_relocated_store_directory_is_recognized_exactly() {
+        use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+        let root = std::env::temp_dir().join(format!("ccd-native-host-{}-{}", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        let physical = root.join("WpSystem/Claude-NativeHost");
+        let logical = root.join("Claude-NativeHost");
+        fs::create_dir_all(physical.join("4.23118.0")).unwrap();
+        let linked = std::process::Command::new("cmd.exe")
+            .args(["/D", "/C", "mklink", "/J"])
+            .arg(logical.to_string_lossy().replace('/', "\\"))
+            .arg(physical.to_string_lossy().replace('/', "\\")).output().unwrap();
+        assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
+        // 即使断言失败也只清理本测试创建的目录；先移除 junction 本身。
+        struct Cleanup(std::path::PathBuf, std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                if fs::remove_dir(&self.1).is_ok() { let _ = fs::remove_dir_all(&self.0); }
+            }
+        }
+        let _cleanup = Cleanup(root.clone(), logical.clone());
+        let image = physical.join("4.23118.0/chrome-native-host.exe");
+        assert!(official_native_host(&image.to_string_lossy(), &logical));
+        assert!(official_native_host(&image.to_string_lossy().to_uppercase().replace('\\', "/"), &logical));
+        for relative in ["latest/chrome-native-host.exe", "4.23118.0.exe/chrome-native-host.exe", "4.23118.0/extra/chrome-native-host.exe", "4.23118.0/other.exe"] {
+            assert!(!official_native_host(&physical.join(relative).to_string_lossy(), &logical), "{relative}");
+        }
+        assert!(!official_native_host(&root.join("WpSystem/Claude-NativeHostOther/4.23118.0/chrome-native-host.exe").to_string_lossy(), &logical));
+        // 官方逻辑根不存在时，不凭任意其他磁盘上的同名后缀认定为 Claude。
+        assert!(!official_native_host(&image.to_string_lossy(), &root.join("missing")));
+    }
     #[test]
     fn desktop_native_host_without_package_identity_is_recognized_exactly() {
         let local = std::env::var("LOCALAPPDATA").unwrap();

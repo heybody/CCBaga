@@ -1,3 +1,11 @@
+# local.26 跨盘连接器识别与 Windows 额度对齐（2026-11-12）
+
+用户明确要求本轮修复、构建，不安装、不重启；另授权清理已核实的残留。实际根因：`chrome-native-host.exe`（PID 26968）持有 `AppData/Local/Claude/logs/chrome-native-host.log` 的追加写句柄，官方逻辑路径位于 C 盘，但 `QueryFullProcessImageNameW` 返回 `D:/WpSystem/<当前用户SID>/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude-NativeHost/4.23118.0/chrome-native-host.exe`；旧版只匹配 C 盘路径，所以显示进程 0/0、切换失败。CoworkVMService 停止后仍失败，与其无关。经当前用户 SID、实际路径/版本/文件名及同一进程句柄核验后结束此连接器，cmd 启动器随之退出，日志目录原地改名检查从错误 5 变为成功；未执行真实身份切换或重启切换器。
+
+修复只对官方 Native Host 根执行 canonical 解析，接受对应实际路径，不放宽为任意 WpSystem 同名程序；枚举和终止共用修正后的识别，保持 SID/创建时间/原句柄检查。真实 junction 回归覆盖跨盘等效重定向和相似目录/非法版本拒绝。真实追加日志句柄回归解释为什么 DELETE 访问可用仍不能移动父目录，并验证失败回填、释放句柄后切换成功。
+
+Windows 托盘原用 tab 后整段右对齐，100%/0% 宽度变化使标签/条错位。新模块用系统菜单字体与 DrawText 测量完整片段，补齐标签、条、右对齐百分比；不能用 GetTextExtentPoint32 或普通空格推测 Unicode 字形宽度。系统字体回归覆盖六档百分比与两种窗口标签，macOS 逻辑不变。
+
 # local.25 诊断日志（2026-11-11）
 
 身份停止/备份/切换/恢复/删除命令将进度写入 `app_data_dir/diagnostics/identity-current.jsonl`，达到 4 MiB 后于下次操作滚动至 `identity-previous.jsonl`。Windows 实际路径为 `%APPDATA%\ai.local.requirement-french\diagnostics`；macOS 为 `~/Library/Application Support/ai.local.requirement-french/diagnostics`。复用保险库私有 ACL/权限与路径检查，失败/完成阶段同步磁盘，日志写入中途失败不打断身份事务。
