@@ -67,3 +67,5 @@ Windows x64：平台桥使用当前用户 SID、文件所有权、reparse-point 
 本地维护：显示名 CCD Switch（Bundle ID 不变）；分支`cares/identity-only-0.2.50`（基线 v0.2.50，GitHub `heybody/CCBaga`，由`.github/workflows/cares-build.yml`编译，构建配置`packaging/cares/local-build.json`）；接手先读`docs/local-maintenance.md`，其中明确候选包与实际安装版本、验证边界和B后续清理待办。
 
 本地未知账号普通保存沿用选中槽位；空工作区、新账号与恢复检查点仍独立；工作区槽位不冒充真实账号验证。
+
+local.28：当前身份显示及切换默认名沿用自定义名称；完成提示仅提供打开 Claude，可直接重命名当前身份。

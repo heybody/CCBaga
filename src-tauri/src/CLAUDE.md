@@ -54,3 +54,5 @@ local.20：托盘打开项只写“打开/Open”，避免长名称撑宽左列�
 local.21：tray.rs 的 menu_rows 只给出行首与额度，layout 分平台排版：Windows 仍用一个制表符（菜单右侧快捷键列天然对齐）；macOS NSMenu 把制表符当默认 28pt 制表位，经 native/Tray.m 按菜单字体量出行首宽度，align_tabs 补足制表符让所有额度落在同一格。
 
 local.26：Windows 额度不再假定快捷键列内部天然等宽；tray_windows.rs 按实际整段绘制宽度补齐空白，覆盖 0/9/10/20/99/100% 与 5h/7d 的原生字体回归。Native Host 使用官方逻辑根和其 canonical 实际根校验路径，保持用户 SID、精确版本/文件名、创建时间及原句柄核验；仅当前用户的官方连接器可被结束。
+
+local.28：main.rs 注册 identities_open_claude，固定目标启动 Claude Desktop，不执行身份切换。

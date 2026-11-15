@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Tauri 官方 mockIPC、真实身份/浏览器组件与虚构的内存状态。
- * [OUTPUT]: 40 个虚构身份、残留清单、可显式释放的 IPC 与官方 Channel 事件，供无头浏览器验证真实进度/失败；不模拟已移除的 B 功能，不触碰磁盘资料。
+ * [OUTPUT]: 40 个虚构身份（账号原名与自定义名分离）、打开 Claude 命令、残留清单、可显式释放的 IPC 与官方 Channel 事件，供无头浏览器验证真实进度/失败；不模拟已移除的 B 功能，不触碰磁盘资料。
  * [POS]: 独立测试入口；没有原生命令、真实目录、账号或网络，生产 rollup 不包含此入口。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -87,6 +87,7 @@ function execute(command:string,args:any){
  if(command==='ui_language_write')return null;
  if(command==='plugin:app|version')return '0.2.50+local.10';
  if(command==='local_update_check')return {current:'0.2.50+local.10',latest:'0.2.50+local.10',available:false};
+ if(command==='identities_open_claude')return null;
  if(command==='identities_stop'){if(args.confirmed!==true)throw Error('missing explicit process stop consent');state.running=false;state.main_running=false;state.processes=[];return {running:false};}
  if(command==='identities_stop_residual'){if(args.confirmed!==true)throw Error('missing explicit residual stop consent');state.running=false;state.processes=[];state.services=[];return structuredClone(state);}
  if(command==='identities_save'){
@@ -97,9 +98,9 @@ function execute(command:string,args:any){
  }
  if(command==='identities_switch'){
   if(args.recover){state.recovery=null;state.current={...user};return structuredClone(state);}
-  if(state.current.present){const existing=state.records.find(row=>row.id===state.active);if(existing){existing.saved_at=1780000010000+commands.length;existing.policy={...args.policy};}else{const nextId=id(1000+commands.length);state.records.push({id:nextId,name:args.currentName,saved_at:1780000010000+commands.length,bytes:4096,policy:{...args.policy}});state.summaries[nextId]={email:state.current.email,organization:state.current.organization,plan:state.current.plan,auth_status:state.current.auth_status,expires_at:state.current.expires_at};}}
+  if(state.current.present){const existing=state.records.find(row=>row.id===state.active);if(existing){existing.name=args.currentName;existing.saved_at=1780000010000+commands.length;existing.policy={...args.policy};}else{const nextId=id(1000+commands.length);state.records.push({id:nextId,name:args.currentName,saved_at:1780000010000+commands.length,bytes:4096,policy:{...args.policy}});state.summaries[nextId]={email:state.current.email,organization:state.current.organization,plan:state.current.plan,auth_status:state.current.auth_status,expires_at:state.current.expires_at};}}
   state.active=args.targetId;
-  state.current=args.targetId==='empty'?{present:false,display_name:null,email:null,organization:null,plan:null,auth_status:null,unavailable:false}:{...user,display_name:state.records.find(row=>row.id===args.targetId)!.name};
+  state.current=args.targetId==='empty'?{present:false,display_name:null,email:null,organization:null,plan:null,auth_status:null,unavailable:false}:{...user};
   return structuredClone(state);
  }
  if(command==='identities_rename'){state.records.find(row=>row.id===args.id)!.name=args.value;return structuredClone(state);}

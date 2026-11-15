@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Node.js 标准管道、已锁定 playwright-core、固定引擎、Vite 与 tests/ 的虚构 Tauri IPC。
- * [OUTPUT]: 身份插槽列表、行内切换确认、⋯ 菜单、抽屉、动效开关、浏览器/网络与全清理确认、残留清理与真实 Channel 阶段动画的 DOM 验收，覆盖双语、默认取消及失败重扫；CCBAGA_TEST_BROWSER 可指定本机 Chromium。
+ * [OUTPUT]: 身份插槽列表、行内切换确认、⋯ 菜单、抽屉、动效开关、浏览器/网络与全清理确认、残留清理与真实 Channel 阶段动画的 DOM 验收，覆盖自定义名称往返保留、打开 Claude、双语、默认取消及失败重扫；CCBAGA_TEST_BROWSER 可指定本机 Chromium。
  * [POS]: 发布前无头行为回归；无截图、无真实账号/文件修改，不加载原生宿主，不允许外网请求。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -81,7 +81,7 @@ try{
  assert.match(await slots.last().innerText(),/清空本地登录/);
  assert.equal(await page.locator('.slot.active').count(),1);
  assert.equal(await page.getByText('上次使用',{exact:true}).count(),0);
- assert.equal(await slots.filter({hasText:/^Identity 1\b/}).count(),0);checks++;
+ assert.equal(await page.locator('.slot-title strong').filter({hasText:/^Identity 1$/}).count(),1);checks++;
  assert.equal(await page.getByRole('switch',{name:'联动浏览器'}).count(),0);
  assert.equal(await page.getByRole('button',{name:'导入',exact:true}).count(),0);assert.equal(await page.getByText('导出',{exact:true}).count(),0);
  assert.equal(await page.getByRole('switch',{name:'快速模式',exact:true}).count(),1);checks++;
@@ -89,6 +89,12 @@ try{
  assert.match(await current.innerText(),/已备份/);assert.match(await current.innerText(),/Pro/);assert.match(await current.innerText(),/本地未过期/);
  const savedSecond=page.locator('.slot').filter({has:page.getByRole('button',{name:'切换到 Identity 2',exact:true})});
  assert.match(await savedSecond.innerText(),/user2@example\.invalid/);assert.match(await savedSecond.innerText(),/Org 2/);checks++;
+ // ----- 当前身份重命名后，账号原名不覆盖数字前缀；备份与切出沿用自定义名 -----
+ await current.getByRole('button',{name:/^更多操作/}).click();
+ await page.getByRole('menuitem',{name:'重命名',exact:true}).click();
+ await page.getByRole('textbox',{name:'身份名称'}).fill('7Fixture user');
+ await page.keyboard.press('Enter');
+ await current.locator('.slot-title strong').getByText('7Fixture user',{exact:true}).waitFor();checks++;
  // ----- 当前身份的 ⋯ 菜单：直接删除仍是默认聚焦取消、遮罩不关闭的 AlertDialog -----
  await current.getByRole('button',{name:/^更多操作/}).click();
  await page.getByRole('menuitem',{name:'直接删除',exact:true}).click();
@@ -105,6 +111,7 @@ try{
  await current.getByRole('button',{name:/^更多操作/}).click();
  await page.getByRole('menuitem',{name:'更新备份',exact:true}).click();
  await confirmPanel.waitFor();
+ assert.equal(await confirmPanel.getByLabel('当前身份保存为').inputValue(),'7Fixture user');
  assert.equal(await page.locator('.slot-confirm').count(),1);assert.match(await current.getAttribute('class')??'',/expanded/);
  assert.match(await confirmPanel.innerText(),/强制结束 Claude Desktop 和 Claude Code/);
  assert.equal(await confirmPanel.getByRole('button',{name:'结束进程并保存备份',exact:true}).isDisabled(),false);
@@ -135,15 +142,15 @@ try{
  await page.getByRole('dialog',{name:'工作区保留'}).getByRole('checkbox',{name:'Skills 与命令'}).uncheck();
  await page.keyboard.press('Escape');await page.locator('.drawer-layer.open').waitFor({state:'detached'});
  await page.getByRole('button',{name:'切换到 空身份',exact:true}).click();
- await confirmPanel.getByLabel('当前身份保存为').fill('First archive');
+ assert.equal(await confirmPanel.getByLabel('当前身份保存为').inputValue(),'7Fixture user');
  await consent().check();
  await confirmPanel.getByRole('button',{name:'结束进程、暂存并切换'}).click();
  await page.waitForFunction(()=>!(window as any).identityFixture.state.current.present);
  assert.equal(await page.locator('.slot[data-slot="current"]').count(),0);assert.equal(await page.locator('.slot.active').getAttribute('data-slot'),'empty');
  const request=await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_switch').args);
- assert.equal(request.policy.skills,false);assert.equal(request.targetId,'empty');assert.equal(request.currentName,'First archive');checks++;
+ assert.equal(request.policy.skills,false);assert.equal(request.targetId,'empty');assert.equal(request.currentName,'7Fixture user');checks++;
  await page.locator('.ccd-toast').getByText('已切换到空身份').waitFor();
- // ----- 数字键直达暂存身份；切换后提示可切回上一身份（仍需重新确认） -----
+ // ----- 数字键直达暂存身份；切换后只提供打开 Claude，失败可重试且不切换身份 -----
  await page.locator('.slot-main').first().focus();
  const targetIndex=await page.locator('.slot-main').evaluateAll(nodes=>nodes.findIndex(node=>node.getAttribute('aria-label')==='切换到 Identity 3'));
  assert(targetIndex>=0&&targetIndex<9);
@@ -153,9 +160,18 @@ try{
  await confirmPanel.getByRole('button',{name:'结束进程、暂存并切换'}).click();await page.locator('.slot.active').getByText(/Fixture team/).waitFor();checks++;
  assert.equal(await page.getByRole('button',{name:'切换到 Identity 3',exact:true}).count(),0);
  await page.locator('.ccd-toast').getByText('已切换到 Identity 3').waitFor();
- await page.locator('.ccd-toast').getByRole('button',{name:'切回 空身份'}).click();
- await confirmPanel.waitFor();assert.match(await confirmPanel.innerText(),/再换成 空身份/);
- assert.equal(await consent().isChecked(),true);
+ assert.equal(await page.locator('.ccd-toast').getByRole('button',{name:/切回/}).count(),0);
+ await page.locator('.slot.active .slot-title strong').getByText('Identity 3',{exact:true}).waitFor();
+ await page.evaluate(()=>{(window as any).identityFixture.setFailure('identities_open_claude');});
+ const switchesBefore=await fixtureCommands('identities_switch');
+ await page.getByRole('button',{name:'打开 Claude',exact:true}).click();
+ await page.getByRole('alert').getByText(/fixture operation failed/).waitFor();
+ await page.getByRole('button',{name:'打开 Claude',exact:true}).click();
+ await page.locator('.ccd-toast').waitFor({state:'detached'});
+ assert.equal(await fixtureCommands('identities_switch'),switchesBefore);
+ assert.equal(await fixtureCommands('identities_open_claude'),2);checks++;
+ await page.getByRole('button',{name:'切换到 空身份',exact:true}).click();
+ await confirmPanel.waitFor();assert.equal(await confirmPanel.getByLabel('当前身份保存为').inputValue(),'Identity 3');
  await confirmPanel.getByRole('button',{name:'取消',exact:true}).click();checks++;
  // ----- 删除暂存身份不再提供浏览器资料选项；行内重命名后删除 -----
  const other=page.locator('.slot').filter({has:page.getByRole('button',{name:'切换到 Identity 4',exact:true})});

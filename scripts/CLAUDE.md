@@ -48,3 +48,5 @@ package-linux-browser.py: 旧目录移动与新目录提交共处取消/回滚�
 test-package-linux-browser.py: 四种目录移动取消恢复及取消后恢复失败保留备份；真实打包入口的首次/重建、版本/执行权限前置检查、复制/提交回滚及双重失败备份保留回归；临时样本不安装引擎，非 Linux 仅替换 uname 选择 Linux 分支。
 test-glib-backport.py: 三平台显式按 UTF-8 读取源码地图，核对 crates.io 源包逐文件摘要与官方两行 VariantStrIter 回补；--native 使用真实 GLib 执行优化构建的上游迭代器回归，不伪造版本或忽略公告。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+local.28：身份 UI 回归增加带数字的自定义名保存/切换、当前身份重命名和打开 Claude 失败重试，无切回入口。

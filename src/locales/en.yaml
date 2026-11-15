@@ -1417,3 +1417,8 @@
 "额度不是最新的，点一下 Claude 托盘图标刷新": "Usage is not up to date. Click the Claude tray icon to refresh."
 "额度不是最新的，打开 Claude 刷新": "Usage is not up to date. Open Claude to refresh."
 "额度 {v0}": "Usage {v0}"
+"打开 Claude": "Open Claude"
+"正在打开 Claude…": "Opening Claude…"
+"无法打开 Claude，请确认已安装 Claude Desktop。": "Unable to open Claude. Make sure Claude Desktop is installed."
+"请先完成身份恢复，再打开 Claude。": "Complete identity recovery before opening Claude."
+"打开 Claude 被中断，请重试。": "Opening Claude was interrupted. Try again."

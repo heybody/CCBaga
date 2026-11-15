@@ -1,3 +1,11 @@
+# local.28 名称保留与打开 Claude（2026-11-15）
+
+根因：当前身份显示优先使用账号 display_name 而非保存的名称；切换确认又把同一原名作为 currentName，备份提交会覆盖原自定义名，导致数字前缀丢失。现在当前行、托盘、备份/切换默认名均优先使用 active 槽位名称，尚未保存的账号才用原名/邮箱；当前身份菜单增加重命名，已丢失的前缀可直接重新填写。
+
+完成提示不再提供切回，改为“打开 Claude”，保留到点击/关闭或开始新操作。原生固定目标启动：macOS 按 com.anthropic.claudefordesktop Bundle ID，Windows 使用系统注册的 claude:// 协议；沿用事务锁并阻止未完成恢复时启动。启动失败保留入口及错误，允许重试。不会自动切换真实账号。
+
+mbp 已通过 TypeScript/Vite、16 项前端测试、连接 Chrome 的 23 项身份 UI 检查及额外 3 轮数字前缀往返（虚构 IPC）、66 项原生身份测试（0 失败、1 忽略）；macOS app 已构建并通过 codesign 校验。尚未安装或发 Release，Windows 协议启动及原生界面未实机验证；双平台 CI 由分支推送触发。
+
 # local.27 商店跨盘文件链路修复（2026-11-15）
 
 现场仍安装 local.25。最新失败发生于预检：唯一拒绝项是 `AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/claude-cli-nodejs`；叶目录为本人所有的普通目录，LocalCache 由 Windows 重定向到 D 盘 WpSystem 当前 SID 下同包目录。该系统父目录所有者为 Administrators，不能误当作身份文件要求修改所有权。前轮 local.26 只修复进程路径识别，遗漏文件检查/恢复与跨卷移动的链路。

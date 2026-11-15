@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 身份目录与脱敏认证元数据、加密压缩保险库、精确进程查询、Cleaner 事务锁和 Tauri 进度通道。
-// [OUTPUT]: 私有滚动诊断日志、只读当前/已保存摘要及有界进程预览、用户保留选项与真实进度的停止/备份/切换/恢复/删除命令。
+// [OUTPUT]: 私有滚动诊断日志、打开 Claude、只读当前/已保存摘要及有界进程预览、用户保留选项与真实进度的停止/备份/切换/恢复/删除命令。
 // [POS]: GUI 身份管理的原生入口；刷新只读工作区、不回收暂存文件；不提供凭据读取、任意文件或网络接口。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 mod archive;
@@ -267,6 +267,41 @@ pub async fn identities_stop_residual(
     .await
     .map_err(|_| "结束残留被中断，请刷新。".to_string())
     .and_then(|r| r);
+    cleaner.leave();
+    result
+}
+/// 只启动固定的 Claude 应用；与身份事务互斥，未完成恢复时拒绝打开。
+#[tauri::command]
+pub async fn identities_open_claude(app: tauri::AppHandle) -> Result<(), String> {
+    let cleaner = app.state::<crate::cleaner::Cleaner>();
+    cleaner.enter()?;
+    let worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let db = database::Database::open(&vault(&worker)?)?;
+        if db.get("recovery")?.is_some() {
+            return Err("请先完成身份恢复，再打开 Claude。".into());
+        }
+        #[cfg(windows)]
+        {
+            crate::windows::open_external_url("claude://")
+                .map_err(|_| "无法打开 Claude，请确认已安装 Claude Desktop。".into())
+        }
+        #[cfg(not(windows))]
+        {
+            #[cfg(target_os = "macos")]
+            let status = std::process::Command::new("/usr/bin/open")
+                .args(["-b", "com.anthropic.claudefordesktop"]).status();
+            #[cfg(not(target_os = "macos"))]
+            let status = std::process::Command::new("xdg-open").arg("claude://").status();
+            match status {
+                Ok(status) if status.success() => Ok(()),
+                _ => Err("无法打开 Claude，请确认已安装 Claude Desktop。".into()),
+            }
+        }
+    })
+    .await
+    .map_err(|_| "打开 Claude 被中断，请重试。".to_string())
+    .and_then(|result| result);
     cleaner.leave();
     result
 }

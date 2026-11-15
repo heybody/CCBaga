@@ -77,3 +77,5 @@ local.17：identity-model.ts 的 usageStale/usageRefreshHint 判断额度样本�
 local.23：身份行 .slot-cta 固定预留 56px（当前行空占位），悬停只改透明度，避免额度列跳动；更新卡片恢复 GitHub 下载并显示 已下载/总大小·百分比。
 
 local.24：身份行去掉 .slot-cta 列，非当前行悬停/聚焦/展开时 .slot-index 内 .slot-num 换成 .slot-go 箭头；额度过期时采样时间（usageAgo）并入副标题 detail，UsageLine 不再输出 em 行。
+
+local.28：自定义身份名称优先用于当前行、托盘及切换备份默认名；当前身份可直接重命名。切换提示移除切回，保留“打开 Claude”直到点击或关闭，启动失败可重试。

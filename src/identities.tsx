@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生身份命令、保留策略、共享确认窗/进度、文件残留与 CLI 维护、定制版更新、界面语言与本机动效开关。
- * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、切换后可一键切回的提示；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
+ * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、切换完成后打开 Claude 的入口；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
  * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复的结束进程确认按用户偏好默认勾选，仍需点击执行，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，无浏览器 B 联动。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -69,24 +69,26 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [drawer,setDrawer]=useState<Drawer|null>(null);
  const [menu,setMenu]=useState<string|null>(null);
  const [showProcesses,setShowProcesses]=useState(false);
- const [toast,setToast]=useState<{text:string;back?:string}|null>(null);
+ const [toast,setToast]=useState<{text:string;openClaude?:boolean}|null>(null);
+ const [openingClaude,setOpeningClaude]=useState(false);
  const [residualOpen,setResidualOpen]=useState(false);
  const update=useAppUpdate();
  const activity=useCleanupActivity();
  const list=useRef<HTMLOListElement>(null);
- const locked=update.busy||busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
+ const locked=openingClaude||update.busy||busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
  const active=state?.records.find(row=>row.id===state.active);
  const current=state?.current;
  const saved=state?.records.filter(row=>!current?.present||row.id!==state.active)??[];
- const currentName=current?.display_name||current?.email?.split('@')[0]||active?.name||t('当前身份');
+ // 自定义槽位名称优先；账号原名仅作为尚未保存身份的默认值。
+ const currentName=active?.name||current?.display_name||current?.email?.split('@')[0]||t('当前身份');
  // ----- 行内确认期间仍可改选其他身份；其余任务、重命名或删除确认进行时锁定 -----
- const rowBlocked=update.busy||busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
+ const rowBlocked=openingClaude||update.busy||busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
  const blocked=locked||loading||!state||!!state?.recovery;
  const effectivePolicy={...policy,history:review==='save'?false:review&&state?.options?.carry_sessions?true:policy.history};
  const kept=policyRows.filter(([key])=>effectivePolicy[key]).map(([,label])=>t(label));
  const removed=policyRows.filter(([key])=>!effectivePolicy[key]).map(([,label])=>t(label));
  const slots:Slot[]=[
-  ...(loading&&!state||current?.present?[{key:'current',kind:'current' as const,target:'save' as const}]:[]),
+  ...(loading&&!state||current?.present?[{key:'current',kind:'current' as const,record:active,target:'save' as const}]:[]),
   ...saved.map(record=>({key:record.id,kind:'saved' as const,record,target:record as Target})),
   {key:'empty',kind:'empty',target:'empty'},
  ];
@@ -144,7 +146,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   return()=>clearTimeout(timer);
  },[state,now]);
  useEffect(()=>{onBusy?.(locked);return()=>onBusy?.(false);},[locked,onBusy]);
- useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(null),6000);return()=>clearTimeout(timer);},[toast]);
+ useEffect(()=>{if(!toast||toast.openClaude)return;const timer=setTimeout(()=>setToast(null),6000);return()=>clearTimeout(timer);},[toast]);
  useEffect(()=>{
   if(!menu)return;
   const close=(event:PointerEvent)=>{if(!(event.target as Element).closest('.slot-menu, .slot-more'))setMenu(null);};
@@ -156,7 +158,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    const next=await invoke<IdentityState>('identities_read');
    setState(next);if(invalidateResidue)setResidueRevision(value=>value+1);setError('');
    if(review==='empty'){
-    const resolved=next.current.display_name||next.current.email?.split('@')[0]||next.records.find(row=>row.id===next.active)?.name||t('当前身份');
+    const resolved=next.records.find(row=>row.id===next.active)?.name||next.current.display_name||next.current.email?.split('@')[0]||t('当前身份');
     setName(old=>old===t('当前身份')?resolved.slice(0,64):old);
    }
    return true;
@@ -191,7 +193,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  }
  async function change() {
   if(!review||busy||!stopAccepted)return;
-  const target=review,previous=current?.present===false?'empty':active?.id;setReview(null);setBusy(true);setError('');
+  const target=review;setReview(null);setBusy(true);setError('');
   const onProgress=activity.start('identity',target==='recovery'?'恢复原身份':target==='save'?'保存当前身份备份':target==='empty'?'切换到空身份':'切换身份');
   try {
    await stop();
@@ -202,11 +204,17 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    setResidueRevision(value=>value+1);
    activity.finish(true,(target==='recovery'?'原身份已恢复。':target==='save'?'当前身份已加密备份，工作区保持不变。':'身份切换完成。'));
    if(typeof target==='object'||target==='empty'){
-    const back=previous==='empty'?(next.current.present?'empty':undefined):previous&&next.records.some(row=>row.id===previous)&&next.active!==previous?previous:undefined;
-    setToast({text:typeof target==='object'?t('已切换到 {v0}',{v0:target.name}):t('已切换到空身份'),back});
+    setToast({text:typeof target==='object'?t('已切换到 {v0}',{v0:target.name}):t('已切换到空身份'),openClaude:true});
    }
   } catch(e) {setError(String(e));activity.finish(false,String(e));await refreshAfterError();}
   finally {setBusy(false);}
+ }
+ async function openClaude() {
+  if(blocked||openingClaude)return;
+  setOpeningClaude(true);setError('');
+  try {await invoke('identities_open_claude');setToast(null);await read(false);}
+  catch(e) {setError(String(e));}
+  finally {setOpeningClaude(false);}
  }
  function confirmDelete(target:Identity|'current') {setMenu(null);setDeletion(target);setStopAccepted(true);setAccepted(false);setError('');}
  async function remove() {
@@ -296,6 +304,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   const expanded=sameTarget(review,slot.target);
   const menuItems:{label:string;run:()=>void;danger?:boolean}[]=slot.kind==='current'?[
    {label:active?t('更新备份'):t('保存备份'),run:()=>choose('save')},
+   ...(active?[{label:t('重命名'),run:()=>startRename(active)}]:[]),
    {label:t('直接删除'),run:()=>confirmDelete('current'),danger:true},
   ]:slot.kind==='saved'?[
    {label:t('重命名'),run:()=>startRename(slot.record!)},
@@ -365,7 +374,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   </>}
   <AnimatePresence>{toast&&<motion.div className="ccd-toast" role="status" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} exit={{opacity:0,y:16}} transition={{type:'spring',stiffness:380,damping:30}}>
    <span>✓ {toast.text}</span>
-   {toast.back&&(()=>{const back=toast.back==='empty'?'empty' as const:state?.records.find(row=>row.id===toast.back);return back?<button type="button" disabled={rowBlocked} onClick={()=>choose(back)}>{t('切回 {v0}',{v0:back==='empty'?t('空身份'):back.name})}</button>:null;})()}
+   {toast.openClaude&&<button type="button" disabled={blocked} onClick={()=>void openClaude()}>{t(openingClaude?'正在打开 Claude…':'打开 Claude')}</button>}
    <button type="button" className="ccd-toast-close" aria-label={t('关闭')} onClick={()=>setToast(null)}>×</button>
   </motion.div>}</AnimatePresence>
   <SideDrawer open={drawer==='keep'} title={drawerTitle.keep} onClose={()=>setDrawer(null)}>
