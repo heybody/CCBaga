@@ -17,6 +17,8 @@ use windows_sys::Win32::Security::{
     TOKEN_USER,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+#[path = "windows_paths.rs"]
+pub(crate) mod paths;
 #[path = "windows_process.rs"]
 mod processes;
 pub(crate) use processes::ChildJob;

@@ -9,6 +9,7 @@ main.rs: 官方更新/重启/原生文件选择插件与 Tauri 生命周期、�
 ui_language.rs: 受 zh/en 白名单限制的界面偏好，原子持久化后发布内存状态；保存后刷新托盘菜单，独立于电脑与浏览器语言。
 tray_windows.rs: 按系统菜单字体的 DrawText 绘制宽度补齐 Windows 额度标签/进度条/百分比列，整段右对齐时保持列位置；处理 Unicode 字形回退和像素舍入，不修改 macOS 排版。
 tray.rs: 托盘菜单（身份快捷项/打开/退出）；前端经 tray_identities_set 推送仅含 id/名称/是否当前的列表（过滤非法 id、截断名称、最多 32 项）；点身份只显示窗口并发 tray-switch 事件，由窗口内行内确认取得结束进程授权，原生层不直接切换。
+windows_paths.rs: 仅认可当前 LOCALAPPDATA 下固定 Claude 包 LocalCache 到磁盘根 WpSystem/当前 SID/同包/LocalCache 的映射；父级和目标不得再含链接，实际身份源仍核验本人所有权；按真实卷编号选择快速归档。
 windows.rs: Win32 剪贴板、TokenUser/TokenOwner 文件检查、绝对长路径、真实 UI 语言/区域/时区和本机代理；不以额外管理员组扩大信任，不将新偏好冒充当前显示语言；拒绝凭据管理器自动读取和 SSH 操作。
 windows_tests.rs: 隔离文件所有者、长路径/命名空间及代理/语言格式回归；CI 专用时区写入后还原，不操作本机真实身份。
 windows_timezones.rs: CLDR 48 固定全量 Windows/IANA 映射与目录别名，无运行时下载或猜测；原始许可证作为 Windows 资源交付。

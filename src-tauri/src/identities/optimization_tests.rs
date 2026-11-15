@@ -1,5 +1,5 @@
 // [INPUT]: 虚构 UUID/组织/凭据、隔离文件系统和归档格式。
-// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、Windows 普通日志大小写与父目录边界、缓存占用时部分挪动回填、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
+// [OUTPUT]: A/B 往返去重、刷新凭据覆盖、跨组织隔离、旧版迁移与覆盖故障、Windows 双卷切换/回滚/会话合并、普通日志大小写与父目录边界、缓存占用时部分挪动回填、新 Windows 资料目录/回滚/Cowork 保留、个人设置和共享代理保留回归。
 // [POS]: 账号匹配与不可变归档代次的离线证明，不读取真实用户数据。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::*;
@@ -1178,4 +1178,44 @@ fn windows_root_backup_restores_under_system_owned_home_without_changing_acl() {
     assert_eq!(fs::read(f.home.join(".claude.json.backup")).unwrap(), b"backup-under-shared-home");
     assert!(!crate::windows::owned(&f.home));
     assert!(s.db.get("recovery").unwrap().is_none());
+}
+
+// 需要两个真实卷；CCBAGA_TEST_OTHER_VOLUME 指向允许创建临时夹具的目录。
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn cross_volume_fast_switch_restore_rollback_and_carry_history() {
+    let other = PathBuf::from(std::env::var_os("CCBAGA_TEST_OTHER_VOLUME").expect("second volume fixture directory"));
+    for fast in [false, true] {
+        let f = Fixture::new();
+        let root = canonicalize(&other).unwrap().join(format!("baga-cross-volume-{}", new_id().unwrap()));
+        private::directory(&root.join("home")).unwrap();
+        let other = Fixture { home: root.join("home"), vault: root.join("vault"), root };
+        assert!(!crate::windows::paths::same_volume(&f.home, &other.home));
+        let mut s = store::Store::open(&other.vault, &f.home).unwrap();
+        s.db.set_flag("fast_archive", fast).unwrap();
+        let r = Reporter::channel(None);
+        let p = Policy::default();
+        f.login("A", "one", "a-token");
+        f.write(".claude/cache/data", b"cache-a");
+        f.write(".claude/projects/p/a.jsonl", b"history-a");
+        s.switch("empty", "A", &p, &r).unwrap();
+        let a = s.records()[0].id.clone();
+        assert!(!f.home.join(".claude/cache").exists());
+        s.switch(&a, "empty", &p, &r).unwrap();
+        assert_eq!(fs::read(f.home.join(".claude/cache/data")).unwrap(), b"cache-a");
+        assert_eq!(f.token(), "a-token");
+        s.fail_after_clear = true;
+        assert!(s.switch("empty", "A", &p, &r).is_err());
+        assert_eq!(fs::read(f.home.join(".claude/cache/data")).unwrap(), b"cache-a");
+        assert_eq!(f.token(), "a-token");
+        assert!(s.db.get("recovery").unwrap().is_none());
+        s.fail_after_clear = false;
+        s.switch("empty", "A", &p, &r).unwrap();
+        s.db.set_flag("carry_sessions", true).unwrap();
+        s.switch(&a, "empty", &p, &r).unwrap();
+        assert_eq!(fs::read(f.home.join(".claude/projects/p/a.jsonl")).unwrap(), b"history-a");
+        assert_eq!(f.token(), "a-token");
+        assert!(s.db.get("recovery").unwrap().is_none());
+    }
 }

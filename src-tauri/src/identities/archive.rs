@@ -1,5 +1,5 @@
 // [INPUT]: 白名单身份源、SQLite 账号目录、Zstandard/旧 gzip 与认证加密流。
-// [OUTPUT]: 不可变归档代次与短期解包区、真实局部进度；仅当前快照排除默认 debug/latest 链接，通用迁移/恢复遍历仍拒绝链接，新身份分配独立编号。
+// [OUTPUT]: 不可变归档代次与短期解包区、真实局部进度与逐来源预检日志；Windows 跨卷缓存回退加密归档；仅当前快照排除默认 debug/latest 链接，通用迁移/恢复遍历仍拒绝链接，新身份分配独立编号。
 // [POS]: 保险库的数据格式边界，与 store 的工作区切换事务分离，旧 gzip 归档保持可读。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -274,7 +274,7 @@ impl Store {
     ) -> Result<(Record, Stage), String> {
         self.stopped()?;
         reporter.log("validate", "running", "正在检查当前身份文件。", 0, None);
-        let sources = identity::sources(&self.home, policy)?
+        let sources = identity::sources_reported(&self.home, policy, Some(reporter))?
             .into_iter()
             .filter(|s| !identity::transient_lock(&self.home, &s.path, &s.path))
             .collect::<Vec<_>>();
@@ -332,7 +332,16 @@ impl Store {
             sources
                 .iter()
                 .enumerate()
-                .filter(|(_, s)| movable(s))
+                .filter(|(_, s)| {
+                    if !movable(s) { return false; }
+                    #[cfg(windows)]
+                    if !crate::windows::paths::same_volume(&s.path, &self.vault) {
+                        reporter.diagnostic(serde_json::json!({"event":"archive_fallback",
+                            "path":s.path,"reason":"different_or_unknown_volume"}));
+                        return false;
+                    }
+                    true
+                })
                 .map(|(n, _)| n)
                 .collect()
         } else {

@@ -1,5 +1,5 @@
 // [INPUT]: 标准库文件系统、当前用户身份与 Windows ACL API。
-// [OUTPUT]: 私有目录/文件、可拒绝已存在目标的独占目录创建、链接与所有权检查、同步原子写入和 Win32 长路径调用。
+// [OUTPUT]: 私有目录/文件、可拒绝已存在目标的独占目录创建、链接与所有权检查及具体失败路径、仅允许固定 Claude 包 LocalCache 重定向、同步原子写入和 Win32 长路径调用。
 // [POS]: 身份保险库的磁盘边界；创建时明确用户所有者/DACL，已有父目录仅校验而不覆写权限；Win32 调用统一使用长路径。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use std::{fs, io::Write, path::Path};
@@ -55,9 +55,9 @@ fn windows_create<T>(
     }
 }
 pub fn safe(path: &Path) -> Result<(), String> {
-    let meta = fs::symlink_metadata(path).map_err(|_| "身份文件无法读取。")?;
+    let meta = fs::symlink_metadata(path).map_err(|error| format!("身份文件无法读取：{}：{error}", path.display()))?;
     if crate::cleaner::linked(&meta) || (!meta.is_file() && !meta.is_dir()) {
-        return Err("身份路径包含链接或特殊文件。".into());
+        return Err(format!("身份路径包含链接或特殊文件：{}。", path.display()));
     }
     #[cfg(unix)]
     {
@@ -66,12 +66,12 @@ pub fn safe(path: &Path) -> Result<(), String> {
             fn getuid() -> u32;
         }
         if meta.uid() != unsafe { getuid() } {
-            return Err("身份文件不属于当前用户。".into());
+            return Err(format!("身份文件不属于当前用户：{}。", path.display()));
         }
     }
     #[cfg(windows)]
     if !crate::windows::owned(path) {
-        return Err("身份文件不属于当前用户。".into());
+        return Err(format!("身份文件不属于当前用户：{}。", path.display()));
     }
     Ok(())
 }
@@ -81,7 +81,12 @@ pub fn parents(path: &Path) -> Result<(), String> {
         if p.exists() || fs::symlink_metadata(p).is_ok() {
             let m = fs::symlink_metadata(p).map_err(|_| "身份路径无法检查。")?;
             if crate::cleaner::linked(&m) || !m.is_dir() {
-                return Err("身份路径包含链接或特殊文件。".into());
+                #[cfg(windows)]
+                if crate::windows::paths::package_cache_target(p).is_some() {
+                    cursor = p.parent();
+                    continue;
+                }
+                return Err(format!("身份路径包含链接或特殊文件：{}（父目录检查）。", p.display()));
             }
         }
         cursor = p.parent();

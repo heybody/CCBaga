@@ -39,3 +39,5 @@ local.14：Windows Logs/logs 仅叶节点大小写兼容，junction 和父路径
 local.16：State 增加 main_running 与 services；identities_stop_residual 要求 confirmed=true，持事务锁后重新枚举，主进程又打开则拒绝，否则结束已识别进程并停止后台服务。身份切换的 identities_stop 不变，不碰 CoworkVMService。
 
 local.26：缓存占用回归新增真实追加日志句柄：即使 FILE_SHARE_DELETE 允许打开删除权限，Windows 仍拒绝移动父目录；验证缓存回填、日志落盘、关闭句柄后的空身份往返。
+
+local.27：文件预检/创建/恢复共用固定 Claude MSIX LocalCache 到当前 SID 的 WpSystem 重定向规则；普通链接仍拒绝，不更改系统包父目录 ACL。每个来源记录逻辑/实际路径和类型，错误包含具体节点；Windows 快速模式仅同卷缓存使用移动，跨卷或卷未知使用加密归档，会话合并跨卷先复制落盘后移除暂存。optimization_tests.rs 的忽略项 cross_volume_fast_switch_restore_rollback_and_carry_history 需 CCBAGA_TEST_OTHER_VOLUME 指向另一真实卷的可写夹具目录，覆盖快/慢空身份往返、失败回滚和历史带入。

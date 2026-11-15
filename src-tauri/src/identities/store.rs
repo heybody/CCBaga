@@ -1,5 +1,5 @@
 // [INPUT]: SQLite 目录、用户策略、白名单源、已验收归档代次、认证加密与平台凭据桥。
-// [OUTPUT]: 缓存移动路径/系统错误/回滚诊断，不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、恢复文件不要求已有父目录属于本人、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
+// [OUTPUT]: 跨卷历史文件先复制落盘再移除暂存； 缓存移动路径/系统错误/回滚诊断，不改工作区/浏览器选择的原地备份、先暂存后切换、缓存部分挪动失败原路回填、持久恢复记录、原位配置合并、恢复文件不要求已有父目录属于本人、显式删除与真实阶段进度；旧归档瞬态锁不恢复。
 // [POS]: 身份的文件事务；SQLite 与文件系统由恢复日志协调，不能假装是同一原子事务。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 use super::{
@@ -541,14 +541,34 @@ impl Store {
             private::parents(source.path.parent().unwrap())?;
             if !source.path.exists() && data.exists() {
                 // 工作区还没有这类会话：整体挪入。
-                diagnostic_move(&data, &source.path, reporter).map_err(problem)?;
-                private::sync_parent(&source.path);
-                continue;
+                match diagnostic_move(&data, &source.path, reporter) {
+                    Ok(()) => { private::sync_parent(&source.path); continue; }
+                    Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {}
+                    Err(error) => return Err(problem(error)),
+                }
             }
             let merge_file = |from: &Path, to: &Path| -> Result<(), String> {
                 if !to.exists() {
                     private::directory(to.parent().unwrap())?;
-                    return fs::rename(from, to).map_err(problem);
+                    match fs::rename(from, to) {
+                        Ok(()) => return Ok(()),
+                        Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {}
+                        Err(error) => return Err(problem(error)),
+                    }
+                    // 跨卷先独占创建、复制并落盘，成功后才移除暂存文件。
+                    let mut dest = private::create(to)?;
+                    let copied = (|| {
+                        io::copy(&mut fs::File::open(from).map_err(problem)?, &mut dest).map_err(problem)?;
+                        dest.sync_all().map_err(problem)
+                    })();
+                    drop(dest);
+                    if let Err(error) = copied {
+                        let _ = fs::remove_file(to);
+                        return Err(error);
+                    }
+                    fs::remove_file(from).map_err(problem)?;
+                    private::sync_parent(to);
+                    return Ok(());
                 }
                 private::safe(to)?;
                 if to.extension().is_some_and(|x| x == "jsonl") {

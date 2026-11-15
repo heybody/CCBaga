@@ -1,3 +1,11 @@
+# local.27 商店跨盘文件链路修复（2026-11-15）
+
+现场仍安装 local.25。最新失败发生于预检：唯一拒绝项是 `AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Local/claude-cli-nodejs`；叶目录为本人所有的普通目录，LocalCache 由 Windows 重定向到 D 盘 WpSystem 当前 SID 下同包目录。该系统父目录所有者为 Administrators，不能误当作身份文件要求修改所有权。前轮 local.26 只修复进程路径识别，遗漏文件检查/恢复与跨卷移动的链路。
+
+local.27 仅允许固定入口、固定包、当前 SID 的磁盘根 WpSystem 布局；两端父级不允许其他链接，身份数据仍逐项校验本人所有权。逻辑路径继续保存在归档中，兼容现有白名单和迁移格式；跨卷缓存不进入 plain 移动清单，改为既有加密归档；历史合并跨卷先复制落盘，再移除暂存。日志新增 source_check、archive_fallback，路径错误带具体节点。没有删除系统重定向或用户缓存，没有安装/重启/操作真实身份切换。
+
+验证：现场 39 条现存来源只读元数据/父级/所有权预检通过；实际拒绝目录与保险库确认为不同卷。C/D 隔离双卷回归通过（快/慢模式空身份往返、失败回滚、旧会话带入）。Windows 全量回归与构建结果见维护仓库记录；macOS 实机未验证。临时现场探针已移除，常规测试不会访问真实身份。
+
 # local.26 跨盘连接器识别与 Windows 额度对齐（2026-11-12）
 
 用户明确要求本轮修复、构建，不安装、不重启；另授权清理已核实的残留。实际根因：`chrome-native-host.exe`（PID 26968）持有 `AppData/Local/Claude/logs/chrome-native-host.log` 的追加写句柄，官方逻辑路径位于 C 盘，但 `QueryFullProcessImageNameW` 返回 `D:/WpSystem/<当前用户SID>/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude-NativeHost/4.23118.0/chrome-native-host.exe`；旧版只匹配 C 盘路径，所以显示进程 0/0、切换失败。CoworkVMService 停止后仍失败，与其无关。经当前用户 SID、实际路径/版本/文件名及同一进程句柄核验后结束此连接器，cmd 启动器随之退出，日志目录原地改名检查从错误 5 变为成功；未执行真实身份切换或重启切换器。
