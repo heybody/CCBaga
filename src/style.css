@@ -808,8 +808,9 @@ html.ccd-dark .ccd-bar .ccd-brand { gap:12px; }
 html.ccd-dark .ccd-running { display:inline-grid; grid-template-columns:22px auto; align-items:center; column-gap:14px; font-size:12px; }
 html.ccd-dark .ccd-running::before { content:''; justify-self:center; width:9px; height:9px; box-sizing:border-box; border-radius:50%; border:1.5px solid var(--ccd-faint); }
 html.ccd-dark .ccd-running.on::before { border:0; background:var(--ccd-accent); box-shadow:0 0 0 3px #5dcaa533; }
-.ccd-running.residual { padding:0; border:0; background:transparent; font-family:inherit; color:var(--ccd-warn); cursor:pointer; }
-.ccd-running.residual:hover:not(:disabled) .ccd-running-text { text-decoration:underline; text-underline-offset:3px; }
+.ccd-running.control { padding:0; border:0; background:transparent; font-family:inherit; cursor:pointer; }
+.ccd-running.control.residual { color:var(--ccd-warn); }
+.ccd-running.control:hover:not(:disabled) .ccd-running-text { text-decoration:underline; text-underline-offset:3px; }
 html.ccd-dark .ccd-running.residual::before { border:0; background:var(--ccd-warn); box-shadow:0 0 0 3px #fac77533; }
 /* 当前身份行不再用圆点（与标题栏运行状态圆点重复），改为高亮编号 */
 .slot-index.live { border:1px solid #5dcaa580; background:#5dcaa51f; color:var(--ccd-accent); font-weight:600; }

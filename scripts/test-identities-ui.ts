@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Node.js 标准管道、已锁定 playwright-core、固定引擎、Vite 与 tests/ 的虚构 Tauri IPC。
- * [OUTPUT]: 身份插槽列表、行内切换确认、⋯ 菜单、抽屉、动效开关、浏览器/网络与全清理确认、残留清理与真实 Channel 阶段动画的 DOM 验收，覆盖自定义名称往返保留、打开 Claude、双语、默认取消及失败重扫；CCBAGA_TEST_BROWSER 可指定本机 Chromium。
+ * [OUTPUT]: 身份插槽列表、行内切换确认、⋯ 菜单、抽屉、动效开关、浏览器/网络与全清理确认、残留清理与真实 Channel 阶段动画的 DOM 验收，覆盖自定义名称往返保留、顶部状态确认开关 Claude、双语、默认取消及失败重扫；CCBAGA_TEST_BROWSER 可指定本机 Chromium。
  * [POS]: 发布前无头行为回归；无截图、无真实账号/文件修改，不加载原生宿主，不允许外网请求。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -68,7 +68,7 @@ try{
  await residualDialog.getByRole('button',{name:'取消',exact:true}).click();
  assert.equal(await fixtureCommands('identities_stop_residual'),0);checks++;
  await page.getByRole('button',{name:'Claude 有残留',exact:true}).click();
- await residualDialog.getByRole('button',{name:'结束残留',exact:true}).click();
+ await residualDialog.getByRole('button',{name:'关闭 Claude',exact:true}).click();
  await page.getByText('Claude 未运行',{exact:true}).waitFor();
  assert.equal(await fixtureCommands('identities_stop_residual'),1);checks++;
  await page.evaluate(processes=>{Object.assign((window as any).identityFixture.state,{running:true,main_running:true,processes});},processesBefore);
@@ -150,7 +150,7 @@ try{
  const request=await page.evaluate(()=>((window as any).identityFixture.commands as any[]).find(row=>row.command==='identities_switch').args);
  assert.equal(request.policy.skills,false);assert.equal(request.targetId,'empty');assert.equal(request.currentName,'7Fixture user');checks++;
  await page.locator('.ccd-toast').getByText('已切换到空身份').waitFor();
- // ----- 数字键直达暂存身份；切换后只提供打开 Claude，失败可重试且不切换身份 -----
+ // ----- 数字键直达暂存身份；切换后只提示结果，顶部状态确认打开/关闭 Claude -----
  await page.locator('.slot-main').first().focus();
  const targetIndex=await page.locator('.slot-main').evaluateAll(nodes=>nodes.findIndex(node=>node.getAttribute('aria-label')==='切换到 Identity 3'));
  assert(targetIndex>=0&&targetIndex<9);
@@ -162,14 +162,37 @@ try{
  await page.locator('.ccd-toast').getByText('已切换到 Identity 3').waitFor();
  assert.equal(await page.locator('.ccd-toast').getByRole('button',{name:/切回/}).count(),0);
  await page.locator('.slot.active .slot-title strong').getByText('Identity 3',{exact:true}).waitFor();
- await page.evaluate(()=>{(window as any).identityFixture.setFailure('identities_open_claude');});
+ assert.equal(await page.locator('.ccd-toast').getByRole('button',{name:'打开 Claude',exact:true}).count(),0);
  const switchesBefore=await fixtureCommands('identities_switch');
- await page.getByRole('button',{name:'打开 Claude',exact:true}).click();
+ await page.getByRole('button',{name:'Claude 未运行',exact:true}).click();
+ dialog=page.getByRole('alertdialog');
+ await dialog.getByText('是否打开 Claude Desktop？',{exact:true}).waitFor();
+ assert.equal(await dialog.getByRole('checkbox').count(),0);
+ await dialog.getByRole('button',{name:'取消',exact:true}).click();
+ assert.equal(await fixtureCommands('identities_open_claude'),0);checks++;
+ await page.evaluate(()=>{(window as any).identityFixture.setFailure('identities_open_claude');});
+ await page.getByRole('button',{name:'Claude 未运行',exact:true}).click();
+ await page.getByRole('alertdialog').getByRole('button',{name:'打开 Claude',exact:true}).click();
  await page.getByRole('alert').getByText(/fixture operation failed/).waitFor();
- await page.getByRole('button',{name:'打开 Claude',exact:true}).click();
- await page.locator('.ccd-toast').waitFor({state:'detached'});
+ await page.getByRole('button',{name:'Claude 未运行',exact:true}).click();
+ await page.getByRole('alertdialog').getByRole('button',{name:'打开 Claude',exact:true}).click();
+ await page.getByRole('button',{name:'Claude 运行中',exact:true}).waitFor();
  assert.equal(await fixtureCommands('identities_switch'),switchesBefore);
  assert.equal(await fixtureCommands('identities_open_claude'),2);checks++;
+ const stopBefore=await fixtureCommands('identities_stop');
+ await page.getByRole('button',{name:'Claude 运行中',exact:true}).click();
+ dialog=page.getByRole('alertdialog');
+ await dialog.getByText('将关闭以下 Claude 进程和服务，请先保存正在进行的任务。',{exact:true}).waitFor();
+ await dialog.getByRole('button',{name:'取消',exact:true}).click();
+ assert.equal(await fixtureCommands('identities_stop'),stopBefore);checks++;
+ await page.getByRole('button',{name:'Claude 运行中',exact:true}).click();
+ dialog=page.getByRole('alertdialog');
+ await consent().uncheck();assert.equal(await dialog.getByRole('button',{name:'关闭 Claude',exact:true}).isDisabled(),true);
+ await consent().check();
+ await dialog.getByRole('button',{name:'关闭 Claude',exact:true}).click();
+ await page.getByRole('button',{name:'Claude 未运行',exact:true}).waitFor();
+ assert.equal(await fixtureCommands('identities_stop'),stopBefore+1);
+ assert.equal(await fixtureCommands('identities_stop_residual'),2);checks++;
  await page.getByRole('button',{name:'切换到 空身份',exact:true}).click();
  await confirmPanel.waitFor();assert.equal(await confirmPanel.getByLabel('当前身份保存为').inputValue(),'Identity 3');
  await confirmPanel.getByRole('button',{name:'取消',exact:true}).click();checks++;

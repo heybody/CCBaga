@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生身份命令、保留策略、共享确认窗/进度、文件残留与 CLI 维护、定制版更新、界面语言与本机动效开关。
- * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、切换完成后打开 Claude 的入口；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
+ * [OUTPUT]: 深色紧凑切换器：标题栏（更新提示/刷新/残留/设置）、身份插槽列表（当前身份高亮、点击行在原地展开切换确认、⋯ 菜单备份/重命名/删除）、底部切换选项与工作区保留抽屉、顶部状态确认打开/关闭 Claude、切换完成仅提示结果；设置/残留/保留/说明以侧滑抽屉呈现，键盘 ↑↓/Enter/1–9/Esc。
  * [POS]: 身份管理 GUI；只呈现脱敏元数据，身份正文留在原生保险库；切换/备份/恢复的结束进程确认按用户偏好默认勾选，仍需点击执行，永久删除保留默认聚焦取消的 AlertDialog；不提供浏览器联动与导入导出入口，无浏览器 B 联动。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -69,20 +69,19 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  const [drawer,setDrawer]=useState<Drawer|null>(null);
  const [menu,setMenu]=useState<string|null>(null);
  const [showProcesses,setShowProcesses]=useState(false);
- const [toast,setToast]=useState<{text:string;openClaude?:boolean}|null>(null);
- const [openingClaude,setOpeningClaude]=useState(false);
- const [residualOpen,setResidualOpen]=useState(false);
+ const [toast,setToast]=useState<{text:string}|null>(null);
+ const [claudeAction,setClaudeAction]=useState<'open'|'stop'|'residual'|null>(null);
  const update=useAppUpdate();
  const activity=useCleanupActivity();
  const list=useRef<HTMLOListElement>(null);
- const locked=openingClaude||update.busy||busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||residualOpen;
+ const locked=update.busy||busy||cliBusy||residueBusy||!!review||!!rename||!!deletion||!!claudeAction;
  const active=state?.records.find(row=>row.id===state.active);
  const current=state?.current;
  const saved=state?.records.filter(row=>!current?.present||row.id!==state.active)??[];
  // 自定义槽位名称优先；账号原名仅作为尚未保存身份的默认值。
  const currentName=active?.name||current?.display_name||current?.email?.split('@')[0]||t('当前身份');
  // ----- 行内确认期间仍可改选其他身份；其余任务、重命名或删除确认进行时锁定 -----
- const rowBlocked=openingClaude||update.busy||busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
+ const rowBlocked=!!claudeAction||update.busy||busy||cliBusy||residueBusy||!!rename||!!deletion||loading||!state||!!state?.recovery;
  const blocked=locked||loading||!state||!!state?.recovery;
  const effectivePolicy={...policy,history:review==='save'?false:review&&state?.options?.carry_sessions?true:policy.history};
  const kept=policyRows.filter(([key])=>effectivePolicy[key]).map(([,label])=>t(label));
@@ -146,7 +145,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   return()=>clearTimeout(timer);
  },[state,now]);
  useEffect(()=>{onBusy?.(locked);return()=>onBusy?.(false);},[locked,onBusy]);
- useEffect(()=>{if(!toast||toast.openClaude)return;const timer=setTimeout(()=>setToast(null),6000);return()=>clearTimeout(timer);},[toast]);
+ useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(null),6000);return()=>clearTimeout(timer);},[toast]);
  useEffect(()=>{
   if(!menu)return;
   const close=(event:PointerEvent)=>{if(!(event.target as Element).closest('.slot-menu, .slot-more'))setMenu(null);};
@@ -184,12 +183,19 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  async function stop() {
   await invoke('identities_stop',{confirmed:stopAccepted,onProgress:activity.channel()});
  }
- async function stopResidual() {
-  if(busy||!stopAccepted)return;
-  setBusy(true);setError('');
-  try {setState(await invoke<IdentityState>('identities_stop_residual',{confirmed:stopAccepted}));setToast({text:t('Claude 残留已结束。')});}
-  catch(e) {setError(String(e));await refreshAfterError();}
-  finally {setResidualOpen(false);setBusy(false);}
+ async function runClaudeAction() {
+  if(!claudeAction||busy||(claudeAction!=='open'&&!stopAccepted))return;
+  const action=claudeAction;setClaudeAction(null);setBusy(true);setError('');
+  try {
+   if(action==='open'){
+    await invoke('identities_open_claude');
+    await read(false);
+   } else {
+    if(action==='stop')await invoke('identities_stop',{confirmed:stopAccepted});
+    setState(await invoke<IdentityState>('identities_stop_residual',{confirmed:stopAccepted}));
+   }
+  } catch(e) {setError(String(e));await refreshAfterError();}
+  finally {setBusy(false);}
  }
  async function change() {
   if(!review||busy||!stopAccepted)return;
@@ -204,17 +210,10 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    setResidueRevision(value=>value+1);
    activity.finish(true,(target==='recovery'?'原身份已恢复。':target==='save'?'当前身份已加密备份，工作区保持不变。':'身份切换完成。'));
    if(typeof target==='object'||target==='empty'){
-    setToast({text:typeof target==='object'?t('已切换到 {v0}',{v0:target.name}):t('已切换到空身份'),openClaude:true});
+    setToast({text:typeof target==='object'?t('已切换到 {v0}',{v0:target.name}):t('已切换到空身份')});
    }
   } catch(e) {setError(String(e));activity.finish(false,String(e));await refreshAfterError();}
   finally {setBusy(false);}
- }
- async function openClaude() {
-  if(blocked||openingClaude)return;
-  setOpeningClaude(true);setError('');
-  try {await invoke('identities_open_claude');setToast(null);await read(false);}
-  catch(e) {setError(String(e));}
-  finally {setOpeningClaude(false);}
  }
  function confirmDelete(target:Identity|'current') {setMenu(null);setDeletion(target);setStopAccepted(true);setAccepted(false);setError('');}
  async function remove() {
@@ -347,7 +346,7 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
  <section className="ccd" data-motion={motionSetting.active?'on':'off'} onKeyDown={keys}>
   <div className="ccd-titlebar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}><strong>Claude Code Desktop Switch</strong></div>
   <header className="ccd-bar" onMouseDown={event=>{if(event.button===0&&document.documentElement.classList.contains('mac')&&!(event.target as Element).closest('button,a,input,[role=status]'))void getCurrentWindow().startDragging().catch(()=>{});}}>
-   <div className="ccd-brand">{residual&&!loading?<button type="button" className="ccd-running residual" title={t('Claude 主进程已退出，仍有后台项在运行。点击查看。')} disabled={locked} onClick={()=>{setStopAccepted(true);setError('');setResidualOpen(true);}}><span className="ccd-running-text">{running}</span></button>:<span className={`ccd-running${state?.main_running?' on':''}`} role="status" title={running} aria-label={running}><span className="ccd-running-text">{running}</span></span>}{update.info?.available&&<button type="button" className="update-pill" onClick={()=>setDrawer('settings')}>{update.percent!==null?t('更新中 {v0}%',{v0:String(update.percent)}):update.busy?t('更新中…'):t('发现新版本 {v0}',{v0:update.info.latest})}</button>}</div>
+   <div className="ccd-brand"><button type="button" className={`ccd-running control${state?.main_running?' on':residual?' residual':''}`} title={loading?running:state?.main_running||residual?t('点击关闭 Claude'):t('点击打开 Claude')} disabled={blocked||state?.processes==null} onClick={()=>{setStopAccepted(true);setError('');setClaudeAction(state?.main_running?'stop':residual?'residual':'open');}}><span className="ccd-running-text">{running}</span></button>{update.info?.available&&<button type="button" className="update-pill" onClick={()=>setDrawer('settings')}>{update.percent!==null?t('更新中 {v0}%',{v0:String(update.percent)}):update.busy?t('更新中…'):t('发现新版本 {v0}',{v0:update.info.latest})}</button>}</div>
    <div className="ccd-tools">
     <button type="button" className="ccd-icon" title={t('刷新')} aria-label={t('刷新')} disabled={locked||loading} onClick={()=>void read()}><Refresh size={17} aria-hidden className={loading?'spin':''}/></button>
     <button type="button" className="ccd-icon" title={t('Claude 文件残留')} aria-label={t('Claude 文件残留')} aria-pressed={drawer==='residue'} onClick={()=>setDrawer('residue')}><EraserDefault size={17} aria-hidden/></button>
@@ -374,7 +373,6 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
   </>}
   <AnimatePresence>{toast&&<motion.div className="ccd-toast" role="status" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} exit={{opacity:0,y:16}} transition={{type:'spring',stiffness:380,damping:30}}>
    <span>✓ {toast.text}</span>
-   {toast.openClaude&&<button type="button" disabled={blocked} onClick={()=>void openClaude()}>{t(openingClaude?'正在打开 Claude…':'打开 Claude')}</button>}
    <button type="button" className="ccd-toast-close" aria-label={t('关闭')} onClick={()=>setToast(null)}>×</button>
   </motion.div>}</AnimatePresence>
   <SideDrawer open={drawer==='keep'} title={drawerTitle.keep} onClose={()=>setDrawer(null)}>
@@ -391,13 +389,15 @@ export function IdentityPanel({onBusy, initialEmpty=false}: {onBusy?: (busy:bool
    <div className="drawer-row"><span>{t('界面语言')}</span><LanguageSwitch/></div>
    <ClaudeCliPanel blocked={locked||loading||!!state?.recovery} onBusy={setCliBusy}/>
   </SideDrawer>
-  <AppDialog alert open={residualOpen} onOpenChange={open=>{if(!open&&!busy)setResidualOpen(false);}} title={t('结束 Claude 残留')} description={t('Claude 主进程已退出，以下后台项仍在运行。')} footer={<><Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setResidualOpen(false)}>{t('取消')}</Button><Button variant="ink" disabled={busy||!stopAccepted} onClick={()=>void stopResidual()}>{t('结束残留')}</Button></>}>
-   <div className="slot-processes"><ul>
-    {state?.processes?.map(process=><li key={process.pid}><code>PID {process.pid}</code><span>{t(process.helper||process.entrypoint)}</span></li>)}
-    {state?.services.map(service=><li key={service}><code>{t('服务')}</code><span>{service}</span></li>)}
-   </ul></div>
-   {!!state?.services.length&&<p className="slot-note">{t('CoworkVMService 是开机自启的系统服务，下次开机或打开 Claude Desktop 时可能再次运行。')}</p>}
-   <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>
+  <AppDialog alert open={!!claudeAction} onOpenChange={open=>{if(!open&&!busy)setClaudeAction(null);}} title={t(claudeAction==='open'?'打开 Claude':'关闭 Claude')} description={t(claudeAction==='open'?'是否打开 Claude Desktop？':claudeAction==='residual'?'Claude 主进程已退出，以下后台项仍在运行。':'将关闭以下 Claude 进程和服务，请先保存正在进行的任务。')} footer={<><Button variant="secondary" data-dialog-cancel disabled={busy} onClick={()=>setClaudeAction(null)}>{t('取消')}</Button><Button variant="ink" disabled={busy||(claudeAction!=='open'&&!stopAccepted)} onClick={()=>void runClaudeAction()}>{t(claudeAction==='open'?'打开 Claude':'关闭 Claude')}</Button></>}>
+   {claudeAction!=='open'&&<>
+    <div className="slot-processes"><ul>
+     {state?.processes?.map(process=><li key={process.pid}><code>PID {process.pid}</code><span>{t(process.helper||process.entrypoint)}</span></li>)}
+     {state?.services.map(service=><li key={service}><code>{t('服务')}</code><span>{service}</span></li>)}
+    </ul></div>
+    {!!state?.services.length&&<p className="slot-note">{t('CoworkVMService 是开机自启的系统服务，下次开机或打开 Claude Desktop 时可能再次运行。')}</p>}
+    <ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>
+   </>}
   </AppDialog>
   <AppDialog alert className="identity-delete-alert" open={!!deletion} onOpenChange={open=>{if(!open&&!busy)setDeletion(null);}} title={deletion==='current'?t('直接删除当前身份'):t('删除暂存身份')} description={deletion==='current'?t('将结束 Claude 进程并删除所选本地数据。不会新增备份，已有暂存身份不受影响。'):t('永久删除这份暂存文件。当前工作区不受影响。')} footer={<><Button variant="secondary" data-dialog-cancel onClick={()=>setDeletion(null)}>{t('取消')}</Button><Button className="identity-delete-button" variant="ink" disabled={busy||!accepted||(deletion==='current'&&!stopAccepted)} onClick={()=>void remove()}>{t('确认直接删除')}</Button></>}>
    {deletion==='current'&&<ClaudeStopConsent checked={stopAccepted} onChange={setStopAccepted}/>}<div className="identity-confirm"><div className="identity-delete-warning"><span aria-hidden="true">!</span><strong>{t('警告：此操作不可撤销，不会创建新备份。')}</strong></div>{deletion==='current'?<><div className="identity-confirm-keep"><span>{t('删除范围')}</span><strong>{[t('登录与身份数据'),...removed].join(' · ')}</strong></div><div className="identity-confirm-keep"><span>{t('留在工作区')}</span><strong>{kept.join(' · ')||t('无')}</strong></div></>:<strong>{deletion?.name}</strong>}<Checkbox checked={accepted} onCheckedChange={setAccepted} label={t('我知道此操作无法撤销')}/></div>

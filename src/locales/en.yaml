@@ -1422,3 +1422,8 @@
 "无法打开 Claude，请确认已安装 Claude Desktop。": "Unable to open Claude. Make sure Claude Desktop is installed."
 "请先完成身份恢复，再打开 Claude。": "Complete identity recovery before opening Claude."
 "打开 Claude 被中断，请重试。": "Opening Claude was interrupted. Try again."
+"关闭 Claude": "Close Claude"
+"点击关闭 Claude": "Click to close Claude"
+"点击打开 Claude": "Click to open Claude"
+"是否打开 Claude Desktop？": "Open Claude Desktop?"
+"将关闭以下 Claude 进程和服务，请先保存正在进行的任务。": "The following Claude processes and services will be closed. Save your work first."

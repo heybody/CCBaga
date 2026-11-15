@@ -9,3 +9,5 @@ identities-fixture.tsx: 真实 IdentityPanel 或 query panel=browser 的 Browser
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
 local.28：虚构切换使用独立账号原名并真正更新出站名称，避免自定义名覆盖问题被夹具掩盖；增加打开 Claude 命令与失败重试。
+
+local.29：虚构启动命令同步进程运行状态，覆盖顶部状态的打开、关闭及失败重试。
